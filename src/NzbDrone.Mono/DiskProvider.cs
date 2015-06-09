@@ -171,7 +171,8 @@ namespace NzbDrone.Mono
         {
             try
             {
-                UnixFileSystemInfo.GetFileSystemEntry(source).CreateSymbolicLink(destination);
+                MoveFile(source,destination,true);
+                UnixFileSystemInfo.GetFileSystemEntry(destination).CreateSymbolicLink(source);
                 return true;
             }
             catch (Exception ex)
