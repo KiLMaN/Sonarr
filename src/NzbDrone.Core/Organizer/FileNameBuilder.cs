@@ -505,19 +505,21 @@ namespace NzbDrone.Core.Organizer
                 mediaInfoAudioLanguages = String.Format("[{0}]", mediaInfoAudioLanguages);
             }
 
-            if (mediaInfoAudioLanguages == "[EN]")
+            /*if (mediaInfoAudioLanguages == "[EN]")
             {
                 mediaInfoAudioLanguages = String.Empty;
-            }
+            }*/
 
             var mediaInfoSubtitleLanguages = GetLanguagesToken(episodeFile.MediaInfo.Subtitles);
             if (!mediaInfoSubtitleLanguages.IsNullOrWhiteSpace())
             {
-                mediaInfoSubtitleLanguages = String.Format("[{0}]", mediaInfoSubtitleLanguages);
+                mediaInfoSubtitleLanguages = String.Format("[ST {0}]", mediaInfoSubtitleLanguages);
             }
 
             tokenHandlers["{MediaInfo Video}"] = m => mediaInfoVideo;
             tokenHandlers["{MediaInfo Audio}"] = m => mediaInfoAudio;
+            tokenHandlers["{MediaInfo SubtitleLanguage}"] = m => mediaInfoSubtitleLanguages;
+            tokenHandlers["{MediaInfo AudioLanguage}"] = m => mediaInfoAudioLanguages;
 
             tokenHandlers["{MediaInfo Simple}"] = m => String.Format("{0} {1}", mediaInfoVideo, mediaInfoAudio);
 
