@@ -33,6 +33,7 @@ namespace NzbDrone.Common.Disk
         void MoveFile(string source, string destination, bool overwrite = false);
         TransferMode TransferFile(string source, string destination, TransferMode transferMode, bool overwrite = false);
         bool TryCreateHardLink(string source, string destination);
+        bool TryCreateSymLink(string source, string destination);
         void DeleteFolder(string path, bool recursive);
         string ReadAllText(string filePath);
         void WriteAllText(string filename, string contents);
