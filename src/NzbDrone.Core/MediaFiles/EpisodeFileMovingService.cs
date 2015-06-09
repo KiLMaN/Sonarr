@@ -62,7 +62,7 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Renaming episode file: {0} to {1}", episodeFile, filePath);
             
-            return TransferFile(episodeFile, series, episodes, filePath, TransferMode.Move);
+            return TransferFile(episodeFile, series, episodes, filePath, TransferMode.SymbolicLinkOrMove);
         }
 
         public EpisodeFile MoveEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
@@ -74,7 +74,7 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
             
-            return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Move);
+            return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.SymbolicLinkOrMove);
         }
 
         public EpisodeFile CopyEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
