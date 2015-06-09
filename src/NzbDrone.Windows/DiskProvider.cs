@@ -125,7 +125,7 @@ namespace NzbDrone.Windows
             }
             catch (Exception ex)
             {*/
-                Logger.DebugException("Symlink not available on windows", ex);
+                Logger.Warn("Symlink not available on windows");
                 return false;
             //}
         }
