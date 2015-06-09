@@ -166,5 +166,19 @@ namespace NzbDrone.Mono
                 return false;
             }
         }
+        
+        public override bool TryCreateSymLink(string source, string destination)
+        {
+            try
+            {
+                UnixFileSystemInfo.GetFileSystemEntry(source).CreateSymbolicLink(destination);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.DebugException(String.Format("Symbolic link '{0}' to '{1}' failed.", source, destination), ex);
+                return false;
+            }
+        }
     }
 }
