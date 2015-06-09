@@ -259,7 +259,16 @@ namespace NzbDrone.Common.Disk
             {
                 DeleteFile(destination);
             }
-
+            
+            if (mode.HasFlag(TransferMode.SymbolicLink))
+            {
+                bool createdSymlink = TryCreateSymLink(source, destination);
+                if (createdSymlink)
+                {
+                    return TransferMode.SymbolicLink;
+                }
+            }
+            
             if (mode.HasFlag(TransferMode.HardLink))
             {
                 bool createdHardlink = TryCreateHardLink(source, destination);
