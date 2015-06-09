@@ -116,5 +116,18 @@ namespace NzbDrone.Windows
                 return false;
             }
         }
+        
+        public override bool TryCreateSymLink(string source, string destination)
+        {
+            /*try
+            {
+                return CreateHardLink(destination, source, IntPtr.Zero);
+            }
+            catch (Exception ex)
+            {*/
+                Logger.DebugException("Symlink not available on windows", ex);
+                return false;
+            //}
+        }
     }
 }
