@@ -443,8 +443,9 @@ namespace NzbDrone.Core.Parser
             if (lowerTitle.Contains("english"))
                 return Language.English;
 
-            if (lowerTitle.Contains("french"))
-                return Language.French;
+           // Fix for files named SUBFRENCH that are not FR !
+           // if (lowerTitle.Contains("french"))
+            //    return Language.French;
 
             if (lowerTitle.Contains("spanish"))
                 return Language.Spanish;
