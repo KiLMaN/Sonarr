@@ -206,15 +206,13 @@ namespace NzbDrone.Common.Disk
                 DeleteFile(destination);
             }
             
-            if (mode.HasFlag(TransferMode.SymbolicLink))
-            {
-                bool createdSymlink = TryCreateSymLink(source, destination);
-                if (createdSymlink)
+            if (mode.HasFlag(TransferMode.HardLink))
                 {
-                    return TransferMode.SymbolicLink;
+                    return TransferMode.HardLink;
                 }
+                    throw new IOException("Hardlinking from '" + source + "' to '" + destination + "' failed.");
             }
-            
+
             RemoveReadOnly(source);
             File.Move(source, destination);
         }
