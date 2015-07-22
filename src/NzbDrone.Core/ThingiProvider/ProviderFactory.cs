@@ -99,12 +99,13 @@ namespace NzbDrone.Core.ThingiProvider
         public virtual void Update(TProviderDefinition definition)
         {
             _providerRepository.Update(definition);
-            _eventAggregator.PublishEvent(new ProviderUpdatedEvent<TProvider>());
+            _eventAggregator.PublishEvent(new ProviderUpdatedEvent<TProvider>(definition));
         }
 
         public void Delete(int id)
         {
             _providerRepository.Delete(id);
+            _eventAggregator.PublishEvent(new ProviderDeletedEvent<TProvider>(id));
         }
 
         public TProvider GetInstance(TProviderDefinition definition)
@@ -141,6 +142,7 @@ namespace NzbDrone.Core.ThingiProvider
         public virtual TProviderDefinition GetProviderCharacteristics(TProvider provider, TProviderDefinition definition)
         {
             definition.ImplementationName = provider.Name;
+            definition.Message = provider.Message;
 
             return definition;
         }

@@ -1,26 +1,22 @@
 using System;
-using System.Collections.Generic;
-using System.Threading;
 using NLog;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Parser;
-using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.Indexers.Rarbg
 {
     public class Rarbg : HttpIndexerBase<RarbgSettings>
     {
         private readonly IRarbgTokenProvider _tokenProvider;
-        private static DateTime _lastFetch;
 
         public override string Name { get { return "Rarbg"; } }
         
         public override DownloadProtocol Protocol { get { return DownloadProtocol.Torrent; } }
-        public override TimeSpan RateLimit { get { return TimeSpan.FromSeconds(10); } }
+        public override TimeSpan RateLimit { get { return TimeSpan.FromSeconds(2); } }
 
-        public Rarbg(IRarbgTokenProvider tokenProvider, IHttpClient httpClient, IConfigService configService, IParsingService parsingService, Logger logger)
-            : base(httpClient, configService, parsingService, logger)
+        public Rarbg(IRarbgTokenProvider tokenProvider, IHttpClient httpClient, IIndexerStatusService indexerStatusService, IConfigService configService, IParsingService parsingService, Logger logger)
+            : base(httpClient, indexerStatusService, configService, parsingService, logger)
         {
             _tokenProvider = tokenProvider;
         }

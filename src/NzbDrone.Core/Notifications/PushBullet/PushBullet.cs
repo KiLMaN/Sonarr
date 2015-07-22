@@ -23,17 +23,17 @@ namespace NzbDrone.Core.Notifications.PushBullet
         {
             const string title = "Sonarr - Episode Grabbed";
 
-            _proxy.SendNotification(title, message, Settings.ApiKey, Settings.DeviceId);
+            _proxy.SendNotification(title, message, Settings);
         }
 
         public override void OnDownload(DownloadMessage message)
         {
             const string title = "Sonarr - Episode Downloaded";
 
-            _proxy.SendNotification(title, message.Message, Settings.ApiKey, Settings.DeviceId);
+            _proxy.SendNotification(title, message.Message, Settings);
         }
 
-        public override void AfterRename(Series series)
+        public override void OnRename(Series series)
         {
         }
 
@@ -42,6 +42,14 @@ namespace NzbDrone.Core.Notifications.PushBullet
             get
             {
                 return "Pushbullet";
+            }
+        }
+
+        public override bool SupportsOnRename
+        {
+            get
+            {
+                return false;
             }
         }
 

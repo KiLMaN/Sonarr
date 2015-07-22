@@ -28,7 +28,7 @@ namespace NzbDrone.Core.Notifications.Plex
             UpdateIfEnabled(message.Series);
         }
 
-        public override void AfterRename(Series series)
+        public override void OnRename(Series series)
         {
             UpdateIfEnabled(series);
         }
@@ -46,6 +46,14 @@ namespace NzbDrone.Core.Notifications.Plex
             get
             {
                 return "Plex Media Server";
+            }
+        }
+
+        public override bool SupportsOnGrab
+        {
+            get
+            {
+                return false;
             }
         }
 

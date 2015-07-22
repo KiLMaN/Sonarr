@@ -23,7 +23,7 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
         {
             var pageableRequests = new List<IEnumerable<IndexerRequest>>();
 
-            pageableRequests.AddIfNotNull(GetPagedRequests(1, null));
+            pageableRequests.AddIfNotNull(GetPagedRequests(MaxPages, null));
 
             return pageableRequests;
         }
@@ -114,6 +114,16 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
 
                     parameters.Category = "Episode";
                     parameters.Name = String.Format("S{0:00}E{1:00}", episode.SeasonNumber, episode.EpisodeNumber);
+
+                    pageableRequest.AddIfNotNull(GetPagedRequests(MaxPages, parameters));
+                }
+
+                foreach (var seasonNumber in searchCriteria.Episodes.Select(v => v.SeasonNumber).Distinct())
+                {
+                    parameters = parameters.Clone();
+
+                    parameters.Category = "Season";
+                    parameters.Name = String.Format("Season {0}", seasonNumber);
 
                     pageableRequest.AddIfNotNull(GetPagedRequests(MaxPages, parameters));
                 }

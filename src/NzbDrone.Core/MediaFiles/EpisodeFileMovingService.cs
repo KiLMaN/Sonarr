@@ -27,6 +27,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IEpisodeService _episodeService;
         private readonly IUpdateEpisodeFileService _updateEpisodeFileService;
         private readonly IBuildFileNames _buildFileNames;
+        private readonly IDiskTransferService _diskTransferService;
         private readonly IDiskProvider _diskProvider;
         private readonly IMediaFileAttributeService _mediaFileAttributeService;
         private readonly IEventAggregator _eventAggregator;
@@ -36,6 +37,7 @@ namespace NzbDrone.Core.MediaFiles
         public EpisodeFileMovingService(IEpisodeService episodeService,
                                 IUpdateEpisodeFileService updateEpisodeFileService,
                                 IBuildFileNames buildFileNames,
+                                IDiskTransferService diskTransferService,
                                 IDiskProvider diskProvider,
                                 IMediaFileAttributeService mediaFileAttributeService,
                                 IEventAggregator eventAggregator,
@@ -45,6 +47,7 @@ namespace NzbDrone.Core.MediaFiles
             _episodeService = episodeService;
             _updateEpisodeFileService = updateEpisodeFileService;
             _buildFileNames = buildFileNames;
+            _diskTransferService = diskTransferService;
             _diskProvider = diskProvider;
             _mediaFileAttributeService = mediaFileAttributeService;
             _eventAggregator = eventAggregator;
@@ -94,11 +97,11 @@ namespace NzbDrone.Core.MediaFiles
             return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Copy);
         }
         
-        private EpisodeFile TransferFile(EpisodeFile episodeFile, Series series, List<Episode> episodes, string destinationFilename, TransferMode mode)
+        private EpisodeFile TransferFile(EpisodeFile episodeFile, Series series, List<Episode> episodes, string destinationFilePath, TransferMode mode)
         {
             Ensure.That(episodeFile, () => episodeFile).IsNotNull();
             Ensure.That(series,() => series).IsNotNull();
-            Ensure.That(destinationFilename, () => destinationFilename).IsValidPath();
+            Ensure.That(destinationFilePath, () => destinationFilePath).IsValidPath();
 
             var episodeFilePath = episodeFile.Path ?? Path.Combine(series.Path, episodeFile.RelativePath);
 
@@ -107,15 +110,14 @@ namespace NzbDrone.Core.MediaFiles
                 throw new FileNotFoundException("Episode file path does not exist", episodeFilePath);
             }
 
-            if (episodeFilePath.PathEquals(destinationFilename))
+            if (episodeFilePath == destinationFilePath)
             {
                 throw new SameFilenameException("File not moved, source and destination are the same", episodeFilePath);
             }
 
-            _logger.Debug("{0} [{1}] > [{2}]", mode, episodeFilePath, destinationFilename);
-            _diskProvider.TransferFile(episodeFilePath, destinationFilename, mode);
+            _diskTransferService.TransferFile(episodeFilePath, destinationFilePath, mode);
 
-            episodeFile.RelativePath = series.Path.GetRelativePath(destinationFilename);
+            episodeFile.RelativePath = series.Path.GetRelativePath(destinationFilePath);
 
             _updateEpisodeFileService.ChangeFileDateForFile(episodeFile, series, episodes);
 
@@ -125,7 +127,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 if (series.SeasonFolder)
                 {
-                    var seasonFolder = Path.GetDirectoryName(destinationFilename);
+                    var seasonFolder = Path.GetDirectoryName(destinationFilePath);
 
                     _mediaFileAttributeService.SetFolderLastWriteTime(seasonFolder, episodeFile.DateAdded);
                 }
@@ -136,7 +138,7 @@ namespace NzbDrone.Core.MediaFiles
                 _logger.WarnException("Unable to set last write time", ex);
             }
 
-            _mediaFileAttributeService.SetFilePermissions(destinationFilename);
+            _mediaFileAttributeService.SetFilePermissions(destinationFilePath);
 
             return episodeFile;
         }

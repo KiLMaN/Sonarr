@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -24,9 +26,9 @@ namespace NzbDrone.Common.Processes
         Boolean Exists(int processId);
         Boolean Exists(string processName);
         ProcessPriorityClass GetCurrentProcessPriority();
-        Process Start(string path, string args = null, Action<string> onOutputDataReceived = null, Action<string> onErrorDataReceived = null);
-        Process SpawnNewProcess(string path, string args = null);
-        ProcessOutput StartAndCapture(string path, string args = null);
+        Process Start(string path, string args = null, StringDictionary environmentVariables = null, Action<string> onOutputDataReceived = null, Action<string> onErrorDataReceived = null);
+        Process SpawnNewProcess(string path, string args = null, StringDictionary environmentVariables = null);
+        ProcessOutput StartAndCapture(string path, string args = null, StringDictionary environmentVariables = null);
     }
 
     public class ProcessProvider : IProcessProvider
@@ -104,7 +106,7 @@ namespace NzbDrone.Common.Processes
             process.Start();
         }
 
-        public Process Start(string path, string args = null, Action<string> onOutputDataReceived = null, Action<string> onErrorDataReceived = null)
+        public Process Start(string path, string args = null, StringDictionary environmentVariables = null, Action<string> onOutputDataReceived = null, Action<string> onErrorDataReceived = null)
         {
             if (OsInfo.IsMonoRuntime && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
             {
@@ -123,6 +125,13 @@ namespace NzbDrone.Common.Processes
                 RedirectStandardInput = true
             };
 
+            if (environmentVariables != null)
+            {
+                foreach (DictionaryEntry environmentVariable in environmentVariables)
+                {
+                    startInfo.EnvironmentVariables.Add(environmentVariable.Key.ToString(), environmentVariable.Value.ToString());
+                }
+            }
 
             logger.Debug("Starting {0} {1}", path, args);
 
@@ -163,7 +172,7 @@ namespace NzbDrone.Common.Processes
             return process;
         }
 
-        public Process SpawnNewProcess(string path, string args = null)
+        public Process SpawnNewProcess(string path, string args = null, StringDictionary environmentVariables = null)
         {
             if (OsInfo.IsMonoRuntime && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
             {
@@ -184,10 +193,14 @@ namespace NzbDrone.Common.Processes
             return process;
         }
 
-        public ProcessOutput StartAndCapture(string path, string args = null)
+        public ProcessOutput StartAndCapture(string path, string args = null, StringDictionary environmentVariables = null)
         {
             var output = new ProcessOutput();
-            Start(path, args, s => output.Standard.Add(s), error => output.Error.Add(error)).WaitForExit();
+            var process = Start(path, args, environmentVariables, s => output.Lines.Add(new ProcessOutputLine(ProcessOutputLevel.Standard, s)),
+                                                                  error => output.Lines.Add(new ProcessOutputLine(ProcessOutputLevel.Error, error)));
+
+            process.WaitForExit();
+            output.ExitCode = process.ExitCode;
 
             return output;
         }
@@ -244,6 +257,12 @@ namespace NzbDrone.Common.Processes
 
             foreach (var processInfo in processes)
             {
+                if (processInfo.Id == Process.GetCurrentProcess().Id)
+                {
+                    _logger.Debug("Tried killing own process, skipping: {0} [{1}]", processInfo.Id, processInfo.ProcessName);
+                    continue;
+                }
+
                 _logger.Debug("Killing process: {0} [{1}]", processInfo.Id, processInfo.ProcessName);
                 Kill(processInfo.Id);
             }
@@ -305,6 +324,18 @@ namespace NzbDrone.Common.Processes
                                    .Union(monoProcesses).ToList();
 
             _logger.Debug("Found {0} processes with the name: {1}", processes.Count, name);
+
+            try
+            {
+                foreach (var process in processes)
+                {
+                    _logger.Debug(" - [{0}] {1}", process.Id, process.ProcessName);
+                }
+            }
+            catch
+            {
+                // Don't crash on gettings some log data.
+            }
 
             return processes;
         }

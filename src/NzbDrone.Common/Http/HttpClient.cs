@@ -26,6 +26,7 @@ namespace NzbDrone.Common.Http
         private readonly Logger _logger;
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
+        private readonly ICached<bool> _curlTLSFallbackCache;
 
         public HttpClient(ICacheManager cacheManager, IRateLimitService rateLimitService, Logger logger)
         {
@@ -34,6 +35,7 @@ namespace NzbDrone.Common.Http
             ServicePointManager.DefaultConnectionLimit = 12;
 
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
+            _curlTLSFallbackCache = cacheManager.GetCache<bool>(typeof(HttpClient), "curlTLSFallback");
         }
 
         public HttpResponse Execute(HttpRequest request)
@@ -71,29 +73,136 @@ namespace NzbDrone.Common.Http
                 AddRequestHeaders(webRequest, request.Headers);
             }
 
-            var cookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
+            PrepareRequestCookies(request, webRequest);
 
-            if (request.Cookies.Count != 0)
+            var response = ExecuteRequest(request, webRequest);
+
+            HandleResponseCookies(request, webRequest);
+
+            stopWatch.Stop();
+
+            _logger.Trace("{0} ({1:n0} ms)", response, stopWatch.ElapsedMilliseconds);
+
+            if (request.AllowAutoRedirect && !RuntimeInfoBase.IsProduction &&
+                (response.StatusCode == HttpStatusCode.Moved ||
+                response.StatusCode == HttpStatusCode.MovedPermanently ||
+                response.StatusCode == HttpStatusCode.Found))
             {
-                foreach (var pair in request.Cookies)
+                _logger.Error("Server requested a redirect to [" + response.Headers["Location"] + "]. Update the request URL to avoid this redirect.");
+            }
+
+            if (!request.SuppressHttpError && response.HasHttpError)
+            {
+                _logger.Warn("HTTP Error - {0}", response);
+
+                if ((int)response.StatusCode == 429)
                 {
-                    cookieContainer.Add(new Cookie(pair.Key, pair.Value, "/", request.Url.Host)
-                    {
-                        Expires = DateTime.UtcNow.AddHours(1)
-                    });
+                    throw new TooManyRequestsException(request, response);
+                }
+                else
+                {
+                    throw new HttpException(request, response);
                 }
             }
 
-            if (request.StoreResponseCookie)
+            return response;
+        }
+
+        private void PrepareRequestCookies(HttpRequest request, HttpWebRequest webRequest)
+        {
+            lock (_cookieContainerCache)
             {
-                webRequest.CookieContainer = cookieContainer;
+                var persistentCookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
+
+                if (request.Cookies.Count != 0)
+                {
+                    foreach (var pair in request.Cookies)
+                    {
+                        persistentCookieContainer.Add(new Cookie(pair.Key, pair.Value, "/", request.Url.Host)
+                        {
+                            Expires = DateTime.UtcNow.AddHours(1)
+                        });
+                    }
+                }
+
+                var requestCookies = persistentCookieContainer.GetCookies(request.Url);
+
+                if (requestCookies.Count == 0 && !request.StoreResponseCookie)
+                {
+                    return;
+                }
+
+                if (webRequest.CookieContainer == null)
+                {
+                    webRequest.CookieContainer = new CookieContainer();
+                }
+
+                webRequest.CookieContainer.Add(requestCookies);
             }
-            else
+        }
+
+        private void HandleResponseCookies(HttpRequest request, HttpWebRequest webRequest)
+        {
+            if (!request.StoreResponseCookie)
             {
-                webRequest.CookieContainer = new CookieContainer();
-                webRequest.CookieContainer.Add(cookieContainer.GetCookies(request.Url));
+                return;
             }
 
+            lock (_cookieContainerCache)
+            {
+                var persistentCookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
+
+                var cookies = webRequest.CookieContainer.GetCookies(request.Url);
+
+                persistentCookieContainer.Add(cookies);
+            }
+        }
+
+        private HttpResponse ExecuteRequest(HttpRequest request, HttpWebRequest webRequest)
+        {
+            if (OsInfo.IsMonoRuntime && webRequest.RequestUri.Scheme == "https")
+            {
+                if (!_curlTLSFallbackCache.Find(webRequest.RequestUri.Host))
+                {
+                    try
+                    {
+                        return ExecuteWebRequest(request, webRequest);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex.ToString().Contains("The authentication or decryption has failed."))
+                        {
+                            _logger.Debug("https request failed in tls error for {0}, trying curl fallback.", webRequest.RequestUri.Host);
+
+                            _curlTLSFallbackCache.Set(webRequest.RequestUri.Host, true);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                if (CurlHttpClient.CheckAvailability())
+                {
+                    return ExecuteCurlRequest(request, webRequest);
+                }
+
+                _logger.Trace("Curl not available, using default WebClient.");
+            }
+            
+            return ExecuteWebRequest(request, webRequest);
+        }
+
+        private HttpResponse ExecuteCurlRequest(HttpRequest request, HttpWebRequest webRequest)
+        {
+            var curlClient = new CurlHttpClient();
+
+            return curlClient.GetResponse(request, webRequest);
+        }
+
+        private HttpResponse ExecuteWebRequest(HttpRequest request, HttpWebRequest webRequest)
+        {
             if (!request.Body.IsNullOrWhiteSpace())
             {
                 var bytes = request.Headers.GetEncodingFromContentType().GetBytes(request.Body.ToCharArray());
@@ -131,26 +240,7 @@ namespace NzbDrone.Common.Http
                 }
             }
 
-            stopWatch.Stop();
-
-            var response = new HttpResponse(request, new HttpHeader(httpWebResponse.Headers), data, httpWebResponse.StatusCode);
-            _logger.Trace("{0} ({1:n0} ms)", response, stopWatch.ElapsedMilliseconds);
-
-            if (request.AllowAutoRedirect && !RuntimeInfoBase.IsProduction &&
-                (response.StatusCode == HttpStatusCode.Moved ||
-                response.StatusCode == HttpStatusCode.MovedPermanently ||
-                response.StatusCode == HttpStatusCode.Found))
-            {
-                _logger.Error("Server requested a redirect to [" + response.Headers["Location"] + "]. Update the request URL to avoid this redirect.");
-            }
-
-            if (!request.SuppressHttpError && response.HasHttpError)
-            {
-                _logger.Warn("HTTP Error - {0}", response);
-                throw new HttpException(request, response);
-            }
-
-            return response;
+            return new HttpResponse(request, new HttpHeader(httpWebResponse.Headers), data, httpWebResponse.StatusCode);
         }
 
         public void DownloadFile(string url, string fileName)

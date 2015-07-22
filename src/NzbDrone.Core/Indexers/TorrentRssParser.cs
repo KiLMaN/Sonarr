@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using NzbDrone.Common.Extensions;
@@ -17,6 +18,14 @@ namespace NzbDrone.Core.Indexers
         public TorrentRssParser()
         {
 
+        }
+
+        public IEnumerable<XElement> GetItems(IndexerResponse indexerResponse)
+        {
+            var document = LoadXmlDocument(indexerResponse);
+            var items = GetItems(document);
+
+            return items;
         }
 
         protected override ReleaseInfo CreateNewReleaseInfo()
@@ -67,7 +76,7 @@ namespace NzbDrone.Core.Indexers
 
         protected virtual Int32? GetSeeders(XElement item)
         {
-            if (ParseSeedersInDescription)
+            if (ParseSeedersInDescription && item.Element("description") != null)
             {
                 var matchSeeders = ParseSeedersRegex.Match(item.Element("description").Value);
 
@@ -90,7 +99,7 @@ namespace NzbDrone.Core.Indexers
 
         protected virtual Int32? GetPeers(XElement item)
         {
-            if (ParseSeedersInDescription)
+            if (ParseSeedersInDescription && item.Element("description") != null)
             {
                 var matchPeers = ParsePeersRegex.Match(item.Element("description").Value);
 

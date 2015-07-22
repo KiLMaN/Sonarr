@@ -10,15 +10,17 @@ using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NLog;
 using NzbDrone.Core.Validation;
 using FluentValidation.Results;
-using System.Net;
+using NzbDrone.Core.Download.Clients.rTorrent;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RemotePathMappings;
+using NzbDrone.Core.ThingiProvider;
 
 namespace NzbDrone.Core.Download.Clients.RTorrent
 {
     public class RTorrent : TorrentClientBase<RTorrentSettings>
     {
         private readonly IRTorrentProxy _proxy;
+        private readonly IRTorrentDirectoryValidator _rTorrentDirectoryValidator;
 
         public RTorrent(IRTorrentProxy proxy,
                         ITorrentFileInfoReader torrentFileInfoReader,
@@ -26,10 +28,12 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
                         IConfigService configService,
                         IDiskProvider diskProvider,
                         IRemotePathMappingService remotePathMappingService,
+                        IRTorrentDirectoryValidator rTorrentDirectoryValidator,
                         Logger logger)
             : base(torrentFileInfoReader, httpClient, configService, diskProvider, remotePathMappingService, logger)
         {
             _proxy = proxy;
+            _rTorrentDirectoryValidator = rTorrentDirectoryValidator;
         }
 
         protected override string AddFromMagnetLink(RemoteEpisode remoteEpisode, string hash, string magnetLink)
@@ -40,6 +44,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             var TRIES = 5;
             var RETRY_DELAY = 500; //ms
             var ready = false;
+
             for (var i = 0; i < TRIES; i++)
             {
                 ready = _proxy.HasHashTorrent(hash, Settings);
@@ -55,9 +60,10 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             {
                 _proxy.SetTorrentLabel(hash, Settings.TvCategory, Settings);
 
-                var priority = (RTorrentPriority)(remoteEpisode.IsRecentEpisode() ?
-                                        Settings.RecentTvPriority : Settings.OlderTvPriority);
-                _proxy.SetTorrentPriority(hash, Settings, priority);
+                SetPriority(remoteEpisode, hash);
+                SetDownloadDirectory(hash);
+
+                _proxy.StartTorrent(hash, Settings);
 
                 return hash;
             }
@@ -74,12 +80,12 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
         protected override string AddFromTorrentFile(RemoteEpisode remoteEpisode, string hash, string filename, byte[] fileContent)
         {
             _proxy.AddTorrentFromFile(filename, fileContent, Settings);
-
             _proxy.SetTorrentLabel(hash, Settings.TvCategory, Settings);
 
-            var priority = (RTorrentPriority)(remoteEpisode.IsRecentEpisode() ?
-                                    Settings.RecentTvPriority : Settings.OlderTvPriority);
-            _proxy.SetTorrentPriority(hash, Settings, priority);
+            SetPriority(remoteEpisode, hash);
+            SetDownloadDirectory(hash);
+
+            _proxy.StartTorrent(hash, Settings);
 
             return hash;
         }
@@ -89,6 +95,14 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             get
             {
                 return "rTorrent";
+            }
+        }
+
+        public override ProviderMessage Message
+        {
+            get
+            {
+                return new ProviderMessage("Sonarr is unable to remove torrents that have finished seeding when using rTorrent", ProviderMessageType.Warning);
             }
         }
 
@@ -174,6 +188,7 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             failures.AddIfNotNull(TestConnection());
             if (failures.Any()) return;
             failures.AddIfNotNull(TestGetTorrents());
+            failures.AddIfNotNull(TestDirectory());
         }
 
         private ValidationFailure TestConnection()
@@ -209,6 +224,32 @@ namespace NzbDrone.Core.Download.Clients.RTorrent
             }
 
             return null;
+        }
+
+        private ValidationFailure TestDirectory()
+        {
+            var result = _rTorrentDirectoryValidator.Validate(Settings);
+
+            if (result.IsValid)
+            {
+                return null;
+            }
+
+            return result.Errors.First();
+        }
+
+        private void SetPriority(RemoteEpisode remoteEpisode, string hash)
+        {
+            var priority = (RTorrentPriority)(remoteEpisode.IsRecentEpisode() ? Settings.RecentTvPriority : Settings.OlderTvPriority);
+            _proxy.SetTorrentPriority(hash, priority, Settings);
+        }
+
+        private void SetDownloadDirectory(string hash)
+        {
+            if (Settings.TvDirectory.IsNotNullOrWhiteSpace())
+            {
+                _proxy.SetTorrentDownloadDirectory(hash, Settings.TvDirectory, Settings);
+            }
         }
     }
 }

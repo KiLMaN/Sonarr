@@ -71,9 +71,9 @@ namespace NzbDrone.Core.Test.IndexerTests.TorrentRssIndexerTests
         }
 
         [Test]
-        public void should_parse_recent_feed_from_Eztv()
+        public void should_parse_recent_feed_from_Ezrss()
         {
-            GivenRecentFeedResponse("Eztv/Eztv.xml");
+            GivenRecentFeedResponse("TorrentRss/Ezrss.xml");
 
             var releases = Subject.FetchRecent();
 
@@ -120,6 +120,34 @@ namespace NzbDrone.Core.Test.IndexerTests.TorrentRssIndexerTests
             torrentInfo.Size.Should().Be(0);
             torrentInfo.InfoHash.Should().Be("96CD620BEDA3EFD7C4D7746EF94549D03A2EB13B");
             torrentInfo.MagnetUrl.Should().Be("magnet:?xt=urn:btih:96CD620BEDA3EFD7C4D7746EF94549D03A2EB13B&dn=The+Voice+S08E25+WEBRip+x264+WNN&tr=udp://tracker.coppersurfer.tk:6969/announce&tr=udp://tracker.leechers-paradise.org:6969&tr=udp://open.demonii.com:1337");
+            torrentInfo.Peers.Should().NotHaveValue();
+            torrentInfo.Seeders.Should().NotHaveValue();
+        }
+
+        [Test]
+        public void should_parse_recent_feed_from_Doki()
+        {
+            Subject.Definition.Settings.As<TorrentRssIndexerSettings>().AllowZeroSize = true;
+
+            GivenRecentFeedResponse("TorrentRss/Doki.xml");
+
+            var releases = Subject.FetchRecent();
+
+            releases.Should().HaveCount(5);
+            releases.First().Should().BeOfType<TorrentInfo>();
+
+            var torrentInfo = releases.First() as TorrentInfo;
+
+            torrentInfo.Title.Should().Be("[Doki] PriPara   50 (848x480 h264 AAC) [6F0B49FD] mkv");
+            torrentInfo.DownloadProtocol.Should().Be(DownloadProtocol.Torrent);
+            torrentInfo.DownloadUrl.Should().Be("http://tracker.anime-index.org/download.php?id=82d8ad84403e01a7786130905ca169a3429e657f&f=%5BDoki%5D+PriPara+-+50+%28848x480+h264+AAC%29+%5B6F0B49FD%5D.mkv.torrent");
+            torrentInfo.InfoUrl.Should().BeNullOrEmpty();
+            torrentInfo.CommentUrl.Should().BeNullOrEmpty();
+            torrentInfo.Indexer.Should().Be(Subject.Definition.Name);
+            torrentInfo.PublishDate.Should().Be(DateTime.Parse("Thu, 02 Jul 2015 08:18:29 GMT").ToUniversalTime());
+            torrentInfo.Size.Should().Be(0);
+            torrentInfo.InfoHash.Should().BeNull();
+            torrentInfo.MagnetUrl.Should().BeNull();
             torrentInfo.Peers.Should().NotHaveValue();
             torrentInfo.Seeders.Should().NotHaveValue();
         }

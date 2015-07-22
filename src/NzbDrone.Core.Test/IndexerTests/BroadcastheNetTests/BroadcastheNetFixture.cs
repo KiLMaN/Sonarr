@@ -21,7 +21,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
             Subject.Definition = new IndexerDefinition()
                 {
                     Name = "BroadcastheNet",
-                    Settings = new BroadcastheNetSettings() {  ApiKey = "abc" }
+                    Settings = new BroadcastheNetSettings() { ApiKey = "abc", BaseUrl = "https://api.btnapps.net/" }
                 };
         }
 
@@ -59,7 +59,8 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
 
         private void VerifyBackOff()
         {
-            // TODO How to detect (and implement) back-off logic.
+            Mocker.GetMock<IIndexerStatusService>()
+                .Verify(v => v.RecordFailure(It.IsAny<int>(), It.IsAny<TimeSpan>()), Times.Once());
         }
 
         [Test]
@@ -86,8 +87,6 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
                 .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0], System.Net.HttpStatusCode.Unauthorized));
 
             var results = Subject.FetchRecent();
-
-            results.Should().BeEmpty();
 
             results.Should().BeEmpty();
 
@@ -126,6 +125,30 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
             VerifyBackOff();
 
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_replace_https_http_as_needed()
+        {
+            var recentFeed = ReadAllText(@"Files/Indexers/BroadcastheNet/RecentFeed.json");
+
+            (Subject.Definition.Settings as BroadcastheNetSettings).BaseUrl = "http://api.btnapps.net/";
+
+            recentFeed = recentFeed.Replace("http:", "https:");
+
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.Execute(It.Is<HttpRequest>(v => v.Method == HttpMethod.POST)))
+                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), recentFeed));
+
+            var releases = Subject.FetchRecent();
+
+            releases.Should().HaveCount(2);
+            releases.First().Should().BeOfType<TorrentInfo>();
+
+            var torrentInfo = releases.First() as TorrentInfo;
+
+            torrentInfo.DownloadUrl.Should().Be("http://broadcasthe.net/torrents.php?action=download&id=123&authkey=123&torrent_pass=123");
+            torrentInfo.InfoUrl.Should().Be("http://broadcasthe.net/torrents.php?id=237457&torrentid=123");
         }
     }
 }

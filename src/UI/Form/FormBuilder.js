@@ -1,6 +1,7 @@
 var Marionette = require('marionette');
 var Handlebars = require('handlebars');
 var _ = require('underscore');
+require('./FormMessage');
 
 var _templateRenderer = function(templateName) {
     var templateFunction = Marionette.TemplateCache.get(templateName);
@@ -30,6 +31,10 @@ var _fieldBuilder = function(field) {
 
     if (field.type === 'path') {
         return _templateRenderer.call(field, 'Form/PathTemplate');
+    }
+
+    if (field.type === 'tag') {
+        return _templateRenderer.call(field, 'Form/TagTemplate');
     }
 
     return _templateRenderer.call(field, 'Form/TextboxTemplate');

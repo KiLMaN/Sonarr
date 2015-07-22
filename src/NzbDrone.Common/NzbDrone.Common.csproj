@@ -79,6 +79,7 @@
     <Compile Include="Disk\OsPath.cs" />
     <Compile Include="Disk\DiskProviderBase.cs" />
     <Compile Include="Disk\IDiskProvider.cs" />
+    <Compile Include="Disk\DiskTransferService.cs" />
     <Compile Include="Disk\TransferMode.cs" />
     <Compile Include="EnsureThat\Ensure.cs" />
     <Compile Include="EnsureThat\EnsureBoolExtensions.cs" />
@@ -139,6 +140,7 @@
     <Compile Include="Extensions\StreamExtensions.cs" />
     <Compile Include="Extensions\XmlExtentions.cs" />
     <Compile Include="HashUtil.cs" />
+    <Compile Include="Http\CurlHttpClient.cs" />
     <Compile Include="Http\GZipWebClient.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -156,6 +158,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Http\HttpRequestBuilder.cs" />
+    <Compile Include="Http\TooManyRequestsException.cs" />
     <Compile Include="Http\UriExtensions.cs" />
     <Compile Include="Extensions\IEnumerableExtensions.cs" />
     <Compile Include="Http\UserAgentBuilder.cs" />
@@ -175,6 +178,7 @@
     <Compile Include="Extensions\PathExtensions.cs" />
     <Compile Include="Processes\PidFileProvider.cs" />
     <Compile Include="Processes\ProcessOutput.cs" />
+    <Compile Include="Processes\ProcessOutputLine.cs" />
     <Compile Include="Processes\ProcessProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\SharedAssemblyInfo.cs" />
@@ -195,6 +199,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="CurlSharp.dll.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>
@@ -207,6 +214,10 @@
     <Content Include="Expansive\license.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ExternalModules\CurlSharp\CurlSharp\CurlSharp.csproj">
+      <Project>{74420a79-cc16-442c-8b1e-7c1b913844f0}</Project>
+      <Name>CurlSharp</Name>
+    </ProjectReference>
     <ProjectReference Include="..\LogentriesNLog\LogentriesNLog.csproj">
       <Project>{9DC31DE3-79FF-47A8-96B4-6BA18F6BB1CB}</Project>
       <Name>LogentriesNLog</Name>

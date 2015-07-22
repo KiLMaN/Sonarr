@@ -16,6 +16,7 @@ namespace NzbDrone.Update.UpdateEngine
     public class InstallUpdateService : IInstallUpdateService
     {
         private readonly IDiskProvider _diskProvider;
+        private readonly IDiskTransferService _diskTransferService;
         private readonly IDetectApplicationType _detectApplicationType;
         private readonly ITerminateNzbDrone _terminateNzbDrone;
         private readonly IAppFolderInfo _appFolderInfo;
@@ -26,6 +27,7 @@ namespace NzbDrone.Update.UpdateEngine
         private readonly Logger _logger;
 
         public InstallUpdateService(IDiskProvider diskProvider,
+                                    IDiskTransferService diskTransferService,
                                     IDetectApplicationType detectApplicationType,
                                     ITerminateNzbDrone terminateNzbDrone,
                                     IAppFolderInfo appFolderInfo,
@@ -36,6 +38,7 @@ namespace NzbDrone.Update.UpdateEngine
                                     Logger logger)
         {
             _diskProvider = diskProvider;
+            _diskTransferService = diskTransferService;
             _detectApplicationType = detectApplicationType;
             _terminateNzbDrone = terminateNzbDrone;
             _appFolderInfo = appFolderInfo;
@@ -79,6 +82,9 @@ namespace NzbDrone.Update.UpdateEngine
 
             try
             {
+                _processProvider.FindProcessByName(ProcessProvider.NZB_DRONE_CONSOLE_PROCESS_NAME);
+                _processProvider.FindProcessByName(ProcessProvider.NZB_DRONE_PROCESS_NAME);
+
                 if (OsInfo.IsWindows)
                 {
                     _terminateNzbDrone.Terminate(processId);
@@ -93,7 +99,7 @@ namespace NzbDrone.Update.UpdateEngine
                     _diskProvider.EmptyFolder(installationFolder);
 
                     _logger.Info("Copying new files to target folder");
-                    _diskProvider.CopyFolder(_appFolderInfo.GetUpdatePackageFolder(), installationFolder);
+                    _diskTransferService.TransferFolder(_appFolderInfo.GetUpdatePackageFolder(), installationFolder, TransferMode.Copy, false);
 
                     // Set executable flag on Sonarr app
                     if (OsInfo.IsOsx)

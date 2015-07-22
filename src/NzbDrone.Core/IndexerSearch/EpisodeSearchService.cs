@@ -16,15 +16,7 @@ using NzbDrone.Core.Tv.Events;
 
 namespace NzbDrone.Core.IndexerSearch
 {
-    public interface IEpisodeSearchService
-    {
-        void MissingEpisodesAiredAfter(DateTime dateTime, IEnumerable<Int32> grabbed);
-    }
-
-    public class EpisodeSearchService : IEpisodeSearchService, 
-                                        IExecute<EpisodeSearchCommand>, 
-                                        IExecute<MissingEpisodeSearchCommand>, 
-                                        IHandle<EpisodeInfoRefreshedEvent>
+    public class EpisodeSearchService : IExecute<EpisodeSearchCommand>, IExecute<MissingEpisodeSearchCommand>
     {
         private readonly ISearchForNzb _nzbSearchService;
         private readonly IProcessDownloadDecisions _processDownloadDecisions;
@@ -43,28 +35,6 @@ namespace NzbDrone.Core.IndexerSearch
             _episodeService = episodeService;
             _queueService = queueService;
             _logger = logger;
-        }
-
-        public void MissingEpisodesAiredAfter(DateTime dateTime, IEnumerable<Int32> grabbed)
-        {
-            var missing = _episodeService.EpisodesBetweenDates(dateTime, DateTime.UtcNow, false)
-                                         .Where(e => !e.HasFile &&
-                                                !_queueService.GetQueue().Select(q => q.Episode.Id).Contains(e.Id) &&
-                                                !grabbed.Contains(e.Id))
-                                         .ToList();
-
-            var downloadedCount = 0;
-            _logger.Info("Searching for {0} missing episodes since last RSS Sync", missing.Count);
-
-            foreach (var episode in missing)
-            {
-                //TODO: Add a flag to the search to state it is a "scheduled" search
-                var decisions = _nzbSearchService.EpisodeSearch(episode);
-                var processed = _processDownloadDecisions.ProcessDecisions(decisions);
-                downloadedCount += processed.Grabbed.Count;
-            }
-
-            _logger.ProgressInfo("Completed search for {0} episodes. {1} reports downloaded.", missing.Count, downloadedCount);
         }
 
         private void SearchForMissingEpisodes(List<Episode> episodes)
@@ -141,58 +111,6 @@ namespace NzbDrone.Core.IndexerSearch
             var missing = episodes.Where(e => !queue.Contains(e.Id)).ToList();
 
             SearchForMissingEpisodes(missing);
-        }
-
-        public void Handle(EpisodeInfoRefreshedEvent message)
-        {
-            //TODO: This should be triggered off of a disk scan, that follows after the refresh so existing files on disk are counted
-            return;
-
-            if (!message.Series.Monitored)
-            {
-                _logger.Debug("Series is not monitored");
-                return;
-            }
-
-            if (message.Updated.Empty() || message.Series.Added.InLastDays(1))
-            {
-                _logger.Debug("Appears to be a new series, skipping search.");
-                return;
-            }
-
-            if (message.Added.Empty())
-            {
-                _logger.Debug("No new episodes, skipping search");
-                return;
-            }
-
-            if (message.Added.None(a => a.AirDateUtc.HasValue))
-            {
-                _logger.Debug("No new episodes have an air date");
-                return;
-            }
-
-            var previouslyAired = message.Added.Where(a => a.AirDateUtc.HasValue && a.AirDateUtc.Value.Before(DateTime.UtcNow.AddDays(1))).ToList();
-
-            if (previouslyAired.Empty())
-            {
-                _logger.Debug("Newly added episodes all air in the future");
-                return;
-            }
-
-            foreach (var episode in previouslyAired)
-            {
-                if (!episode.Monitored)
-                {
-                    _logger.Debug("Episode is not monitored");
-                    continue;
-                }
-
-                var decisions = _nzbSearchService.EpisodeSearch(episode);
-                var processed = _processDownloadDecisions.ProcessDecisions(decisions);
-
-                _logger.ProgressInfo("Episode search completed. {0} reports downloaded.", processed.Grabbed.Count);
-            }
         }
     }
 }
