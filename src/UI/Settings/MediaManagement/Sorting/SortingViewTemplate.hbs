@@ -53,27 +53,16 @@
     </div>
 {{/if_mono}}
 
-    <div class="form-group">
-        <label class="col-sm-3 control-label">Use Hardlinks instead of Copy</label>
+	<div class="form-group">
+		<label class="col-sm-3 control-label">Action on grab</label>
 
-        <div class="col-sm-9">
-            <div class="input-group">
-                <label class="checkbox toggle well">
-                    <input type="checkbox" name="copyUsingHardlinks"/>
-
-                    <p>
-                        <span>Yes</span>
-                        <span>No</span>
-                    </p>
-
-                    <div class="btn btn-primary slide-button"/>
-                </label>
-
-                <span class="help-inline-checkbox">
-                    <i class="icon-sonarr-form-info" title="Use Hardlinks when trying to copy files from torrents that are still being seeded"/>
-                    <i class="icon-sonarr-form-warning" title="Occasionally, file locks may prevent renaming files that are being seeded. You may temporarily disable seeding and use Sonarr's rename function as a work around."/>
-                </span>
-            </div>
-        </div>
-    </div>
+		<div class="col-sm-2">
+			<select class="form-control" name="actionOnGrab">
+				<option value="0">Copy File</option>
+				<option value="1">Move File</option>
+				<option value="2">Create Hard Link</option>
+				<option value="3">Create Symbolic Links</option>
+			</select>
+		</div>
+	</div>
 </fieldset>

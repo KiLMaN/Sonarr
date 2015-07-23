@@ -87,14 +87,33 @@ namespace NzbDrone.Core.MediaFiles
 
             EnsureEpisodeFolder(episodeFile, localEpisode, filePath);
 
-            if (_configService.CopyUsingHardlinks)
+            switch(_configService.ActionOnGrab)
             {
-                _logger.Debug("Hardlinking episode file: {0} to {1}", episodeFile.Path, filePath);
-                return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.HardLinkOrCopy);
+
+                case 0: // Copy File
+                    _logger.Debug("Copying episode file: {0} to {1}", episodeFile.Path, filePath);
+                    return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Copy);
+                    break;
+                case 1: // Move File
+                    _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
+                    return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Move);
+                    break;
+                case 2: // Hard Link
+                    _logger.Debug("Hard Linking episode file: {0} to {1}", episodeFile.Path, filePath);
+                    return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.HardLink);
+                    break;
+                case 3: // Symbolic Link
+                    _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
+                    return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.SymbolicLink);
+
+                    break;
+
+                default:
+                    _logger.Debug("Copying episode file: {0} to {1}", episodeFile.Path, filePath);
+                    return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Copy);
             }
 
-            _logger.Debug("Copying episode file: {0} to {1}", episodeFile.Path, filePath);
-            return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Copy);
+           
         }
         
         private EpisodeFile TransferFile(EpisodeFile episodeFile, Series series, List<Episode> episodes, string destinationFilePath, TransferMode mode)

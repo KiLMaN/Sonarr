@@ -32,7 +32,9 @@ namespace NzbDrone.Core.Configuration
         Boolean CreateEmptySeriesFolders { get; set; }
         FileDateType FileDate { get; set; }
         Boolean SkipFreeSpaceCheckWhenImporting { get; set; }
-        Boolean CopyUsingHardlinks { get; set; }
+        //Boolean CopyUsingHardlinks { get; set; }
+		//Boolean CopyUsingSymboliclinks { get; set; }
+		Int32   ActionOnGrab { get; set; }
         Boolean EnableMediaInfo { get; set; }
 
         //Permissions (Media Management)

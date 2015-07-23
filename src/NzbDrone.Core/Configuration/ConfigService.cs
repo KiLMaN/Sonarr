@@ -191,13 +191,25 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("SkipFreeSpaceCheckWhenImporting", value); }
         }
 
-        public Boolean CopyUsingHardlinks
+        /*public Boolean CopyUsingHardlinks
         {
             get { return GetValueBoolean("CopyUsingHardlinks", false); }
 
             set { SetValue("CopyUsingHardlinks", value); }
         }
 
+		public Boolean CopyUsingSympboliclinks
+        {
+            get { return GetValueBoolean("CopyUsingSympboliclinks", false); }
+
+            set { SetValue("CopyUsingSympboliclinks", value); }
+        }*/
+		public Int32 ActionOnGrab {
+			get { return GetValueInt("ActionOnGrab", 0); }
+
+            set { SetValue("ActionOnGrab", value); }
+		}
+		
         public Boolean EnableMediaInfo
         {
             get { return GetValueBoolean("EnableMediaInfo", true); }
