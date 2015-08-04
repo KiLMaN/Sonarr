@@ -208,7 +208,35 @@ namespace NzbDrone.Common.Test.DiskTests
 
             Subject.GetParentFolder(path).Should().Be(parent);
         }
+        [Test]
+        public void should_be_able_to_create_symbolic_links(FileShare fileShare)
+        {
+            var sourceDir = GetTempFilePath();
+            var source = Path.Combine(sourceDir, "test.txt");
+            var destination = Path.Combine(sourceDir, "destination.txt");
+            var rename = Path.Combine(sourceDir, "rename.txt");
 
+            Directory.CreateDirectory(sourceDir);
+
+            File.WriteAllText(source, "SourceFile");
+
+            Subject.TryCreateSymLink(source, destination).Should().BeTrue();
+
+            using (var stream = new FileStream(source, FileMode.Open, FileAccess.Read, fileShare))
+            {
+                stream.ReadByte();
+
+                Subject.MoveFile(destination, rename);
+
+                stream.ReadByte();
+            }
+
+            File.Exists(rename).Should().BeTrue();
+            File.Exists(destination).Should().BeFalse();
+
+            File.AppendAllText(source, "Test");
+            File.ReadAllText(rename).Should().Be("SourceFileTest");
+        }
         private void DoHardLinkRename(FileShare fileShare)
         {
             var sourceDir = GetTempFilePath();

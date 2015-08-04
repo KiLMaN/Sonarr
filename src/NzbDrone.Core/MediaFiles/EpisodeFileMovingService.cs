@@ -65,7 +65,7 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Renaming episode file: {0} to {1}", episodeFile, filePath);
             
-            return TransferFile(episodeFile, series, episodes, filePath, TransferMode.SymbolicLinkOrMove);
+            return TransferFile(episodeFile, series, episodes, filePath, TransferMode.Move);
         }
 
         public EpisodeFile MoveEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
@@ -77,7 +77,7 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
             
-            return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.SymbolicLinkOrMove);
+            return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Move);
         }
 
         public EpisodeFile CopyEpisodeFile(EpisodeFile episodeFile, LocalEpisode localEpisode)
@@ -93,20 +93,16 @@ namespace NzbDrone.Core.MediaFiles
                 case 0: // Copy File
                     _logger.Debug("Copying episode file: {0} to {1}", episodeFile.Path, filePath);
                     return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Copy);
-                    break;
                 case 1: // Move File
                     _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
                     return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Move);
-                    break;
                 case 2: // Hard Link
                     _logger.Debug("Hard Linking episode file: {0} to {1}", episodeFile.Path, filePath);
                     return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.HardLink);
-                    break;
                 case 3: // Symbolic Link
                     _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
                     return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.SymbolicLink);
-
-                    break;
+ 
 
                 default:
                     _logger.Debug("Copying episode file: {0} to {1}", episodeFile.Path, filePath);

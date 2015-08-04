@@ -171,13 +171,20 @@ namespace NzbDrone.Mono
         {
             try
             {
-                MoveFile(source,destination,true);
-                UnixFileSystemInfo.GetFileSystemEntry(destination).CreateSymbolicLink(source);
+                MoveFile(source,destination, false);
+                UnixSymbolicLinkInfo info = UnixFileSystemInfo.GetFileSystemEntry(destination).CreateSymbolicLink(source);
+                if (info == null || !info.IsSymbolicLink)
+                {
+                    Logger.Warn("Error creating symbolic link , the file returned is not a symbolic link ! ");
+                    return false;
+                }
                 return true;
             }
             catch (Exception ex)
             {
                 Logger.DebugException(String.Format("Symbolic link '{0}' to '{1}' failed.", source, destination), ex);
+                if (!FileExists(source)) // Rollback the move
+                    MoveFile(destination, source, false);
                 return false;
             }
         }

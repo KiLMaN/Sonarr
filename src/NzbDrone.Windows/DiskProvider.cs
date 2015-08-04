@@ -5,6 +5,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Instrumentation;
+using System.ComponentModel;
 
 namespace NzbDrone.Windows
 {
@@ -22,6 +23,15 @@ namespace NzbDrone.Windows
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         [return: MarshalAs(UnmanagedType.Bool)]
         static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool CreateSymbolicLink(string lpSymlinkFileName,string lpTargetFileName, SymLinkFlag dwFlags);
+        internal enum SymLinkFlag
+        {
+            File = 0,
+            Directory = 1
+        }
 
         public override long? GetAvailableSpace(string path)
         {
@@ -119,15 +129,23 @@ namespace NzbDrone.Windows
         
         public override bool TryCreateSymLink(string source, string destination)
         {
-            /*try
+            try
             {
-                return CreateHardLink(destination, source, IntPtr.Zero);
+                MoveFile(source, destination, false);
+                if (!CreateSymbolicLink(source, destination,SymLinkFlag.File))
+                {
+                    throw new Win32Exception();
+                }
+                return true;
             }
             catch (Exception ex)
-            {*/
-                Logger.Warn("Symlink not available on windows");
+            {
+
+                Logger.Warn("Error creating Symbolic link : " + ex);
+                if(!FileExists(source)) // Rollback the move
+                    MoveFile(destination, source, false);
                 return false;
-            //}
+            }
         }
     }
 }
