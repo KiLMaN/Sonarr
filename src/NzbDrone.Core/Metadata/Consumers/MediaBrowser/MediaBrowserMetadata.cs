@@ -79,14 +79,16 @@ namespace NzbDrone.Core.Metadata.Consumers.MediaBrowser
             var xws = new XmlWriterSettings();
             xws.OmitXmlDeclaration = true;
             xws.Indent = false;
-
+            string patternNetwork = @"\([A-Za-z]*\)";
+            Regex regexNetwork = new Regex(pattern);
+            
             using (var xw = XmlWriter.Create(sb, xws))
             {
                 var tvShow = new XElement("Series");
 
                 tvShow.Add(new XElement("id", series.TvdbId));
                 tvShow.Add(new XElement("Status", series.Status));
-                tvShow.Add(new XElement("Network", series.Network));
+                tvShow.Add(new XElement("Network", regexNetwork.Replace(series.Network,"")));
                 tvShow.Add(new XElement("Airs_Time", series.AirTime));
                 //tvShow.Add(new XElement("Airs_DayOfWeek", 
                 if (series.FirstAired.HasValue)
