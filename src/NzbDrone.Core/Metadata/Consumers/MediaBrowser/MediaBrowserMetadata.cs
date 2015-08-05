@@ -81,7 +81,7 @@ namespace NzbDrone.Core.Metadata.Consumers.MediaBrowser
             xws.OmitXmlDeclaration = true;
             xws.Indent = false;
             string patternNetwork = @"\([A-Za-z]*\)";
-            Regex regexNetwork = new Regex(pattern);
+            Regex regexNetwork = new Regex(patternNetwork );
             
             using (var xw = XmlWriter.Create(sb, xws))
             {
