@@ -9,11 +9,11 @@ namespace NzbDrone.Core.Indexers.Torznab
 {
     public class TorznabRssParser : TorrentRssParser
     {
-        public const String ns = "{http://torznab.com/schemas/2015/feed}";
+        public const string ns = "{http://torznab.com/schemas/2015/feed}";
 
         protected override bool PreProcess(IndexerResponse indexerResponse)
         {
-            var xdoc = XDocument.Parse(indexerResponse.Content);
+            var xdoc = LoadXmlDocument(indexerResponse);
             var error = xdoc.Descendants("error").FirstOrDefault();
 
             if (error == null) return true;
@@ -40,6 +40,7 @@ namespace NzbDrone.Core.Indexers.Torznab
         {
             var torrentInfo = base.ProcessItem(item, releaseInfo) as TorrentInfo;
 
+            torrentInfo.TvdbId = GetTvdbId(item);
             torrentInfo.TvRageId = GetTvRageId(item);
 
             return torrentInfo;
@@ -57,22 +58,22 @@ namespace NzbDrone.Core.Indexers.Torznab
         }
 
 
-        protected override String GetInfoUrl(XElement item)
+        protected override string GetInfoUrl(XElement item)
         {
-            return item.TryGetValue("comments").TrimEnd("#comments");
+            return ParseUrl(item.TryGetValue("comments").TrimEnd("#comments"));
         }
 
-        protected override String GetCommentUrl(XElement item)
+        protected override string GetCommentUrl(XElement item)
         {
-            return item.TryGetValue("comments");
+            return ParseUrl(item.TryGetValue("comments"));
         }
 
-        protected override Int64 GetSize(XElement item)
+        protected override long GetSize(XElement item)
         {
-            Int64 size;
+            long size;
 
             var sizeString = TryGetTorznabAttribute(item, "size");
-            if (!sizeString.IsNullOrWhiteSpace() && Int64.TryParse(sizeString, out size))
+            if (!sizeString.IsNullOrWhiteSpace() && long.TryParse(sizeString, out size))
             {
                 return size;
             }
@@ -93,53 +94,66 @@ namespace NzbDrone.Core.Indexers.Torznab
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
             {
-                url = item.Element("enclosure").Attribute("url").Value;
+                url = ParseUrl((string)item.Element("enclosure").Attribute("url"));
             }
 
             return url;
         }
 
-        protected virtual Int32 GetTvRageId(XElement item)
+        protected virtual int GetTvdbId(XElement item)
+        {
+            var tvdbIdString = TryGetTorznabAttribute(item, "tvdbid");
+            int tvdbId;
+
+            if (!tvdbIdString.IsNullOrWhiteSpace() && int.TryParse(tvdbIdString, out tvdbId))
+            {
+                return tvdbId;
+            }
+
+            return 0;
+        }
+
+        protected virtual int GetTvRageId(XElement item)
         {
             var tvRageIdString = TryGetTorznabAttribute(item, "rageid");
-            Int32 tvRageId;
+            int tvRageId;
 
-            if (!tvRageIdString.IsNullOrWhiteSpace() && Int32.TryParse(tvRageIdString, out tvRageId))
+            if (!tvRageIdString.IsNullOrWhiteSpace() && int.TryParse(tvRageIdString, out tvRageId))
             {
                 return tvRageId;
             }
 
             return 0;
         }
-        protected override String GetInfoHash(XElement item)
+        protected override string GetInfoHash(XElement item)
         {
             return TryGetTorznabAttribute(item, "infohash");
         }
 
-        protected override String GetMagnetUrl(XElement item)
+        protected override string GetMagnetUrl(XElement item)
         {
             return TryGetTorznabAttribute(item, "magneturl");
         }
 
-        protected override Int32? GetSeeders(XElement item)
+        protected override int? GetSeeders(XElement item)
         {
             var seeders = TryGetTorznabAttribute(item, "seeders");
 
             if (seeders.IsNotNullOrWhiteSpace())
             {
-                return Int32.Parse(seeders);
+                return int.Parse(seeders);
             }
 
             return base.GetSeeders(item);
         }
 
-        protected override Int32? GetPeers(XElement item)
+        protected override int? GetPeers(XElement item)
         {
             var peers = TryGetTorznabAttribute(item, "peers");
 
             if (peers.IsNotNullOrWhiteSpace())
             {
-                return Int32.Parse(peers);
+                return int.Parse(peers);
             }
 
             var seeders = TryGetTorznabAttribute(item, "seeders");
@@ -147,15 +161,15 @@ namespace NzbDrone.Core.Indexers.Torznab
 
             if (seeders.IsNotNullOrWhiteSpace() && leechers.IsNotNullOrWhiteSpace())
             {
-                return Int32.Parse(seeders) + Int32.Parse(leechers);
+                return int.Parse(seeders) + int.Parse(leechers);
             }
 
             return base.GetPeers(item);
         }
 
-        protected String TryGetTorznabAttribute(XElement item, String key, String defaultValue = "")
+        protected string TryGetTorznabAttribute(XElement item, string key, string defaultValue = "")
         {
-            var attr = item.Elements(ns + "attr").SingleOrDefault(e => e.Attribute("name").Value.Equals(key, StringComparison.CurrentCultureIgnoreCase));
+            var attr = item.Elements(ns + "attr").FirstOrDefault(e => e.Attribute("name").Value.Equals(key, StringComparison.CurrentCultureIgnoreCase));
 
             if (attr != null)
             {

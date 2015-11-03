@@ -13,6 +13,7 @@ using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.RemotePathMappings;
+using NzbDrone.Core.ThingiProvider;
 
 namespace NzbDrone.Core.Download.Clients.TorrentBlackhole
 {
@@ -43,7 +44,7 @@ namespace NzbDrone.Core.Download.Clients.TorrentBlackhole
 
             title = FileNameBuilder.CleanFileName(title);
 
-            var filepath = Path.Combine(Settings.TorrentFolder, String.Format("{0}.torrent", title));
+            var filepath = Path.Combine(Settings.TorrentFolder, string.Format("{0}.torrent", title));
 
             using (var stream = _diskProvider.OpenWriteStream(filepath))
             {
@@ -52,7 +53,7 @@ namespace NzbDrone.Core.Download.Clients.TorrentBlackhole
 
             _logger.Debug("Torrent Download succeeded, saved to: {0}", filepath);
 
-            return hash;
+            return null;
         }
 
         public override string Name
@@ -60,6 +61,14 @@ namespace NzbDrone.Core.Download.Clients.TorrentBlackhole
             get
             {
                 return "Torrent Blackhole";
+            }
+        }
+
+        public override ProviderMessage Message
+        {
+            get
+            {
+                return new ProviderMessage("Sonarr will move files from the Watch folder, it will not hardlink or copy", ProviderMessageType.Warning);
             }
         }
 

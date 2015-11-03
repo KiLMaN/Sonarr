@@ -44,7 +44,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Info("Attempting to send '{0}' to recycling bin", path);
             var recyclingBin = _configService.RecycleBin;
 
-            if (String.IsNullOrWhiteSpace(recyclingBin))
+            if (string.IsNullOrWhiteSpace(recyclingBin))
             {
                 _logger.Info("Recycling Bin has not been configured, deleting permanently. {0}", path);
                 _diskProvider.DeleteFolder(path, true);
@@ -78,7 +78,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Debug("Attempting to send '{0}' to recycling bin", path);
             var recyclingBin = _configService.RecycleBin;
 
-            if (String.IsNullOrWhiteSpace(recyclingBin))
+            if (string.IsNullOrWhiteSpace(recyclingBin))
             {
                 _logger.Info("Recycling Bin has not been configured, deleting permanently. {0}", path);
 
@@ -110,9 +110,18 @@ namespace NzbDrone.Core.MediaFiles
                     }
                 }
 
-                _logger.Debug("Moving '{0}' to '{1}'", path, destination);
-                _diskTransferService.TransferFile(path, destination, TransferMode.Move);
-
+                try
+                {
+                    _logger.Debug("Moving '{0}' to '{1}'", path, destination);
+                    _diskTransferService.TransferFile(path, destination, TransferMode.Move);
+                }
+                catch (IOException e)
+                {
+                    var message = string.Format("Unable to move '{0}' to the recycling bin: '{1}'", path, destination);
+                    _logger.ErrorException(message, e);
+                    throw;
+                }
+                
                 //TODO: Better fix than this for non-Windows?
                 if (OsInfo.IsWindows)
                 {
@@ -125,7 +134,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public void Empty()
         {
-            if (String.IsNullOrWhiteSpace(_configService.RecycleBin))
+            if (string.IsNullOrWhiteSpace(_configService.RecycleBin))
             {
                 _logger.Info("Recycle Bin has not been configured, cannot empty.");
                 return;
@@ -148,7 +157,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public void Cleanup()
         {
-            if (String.IsNullOrWhiteSpace(_configService.RecycleBin))
+            if (string.IsNullOrWhiteSpace(_configService.RecycleBin))
             {
                 _logger.Info("Recycle Bin has not been configured, cannot cleanup.");
                 return;

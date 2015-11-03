@@ -1,7 +1,7 @@
-using System.Linq;
+using System;
 using NLog;
-using NzbDrone.Core.Download;
-using NzbDrone.Core.Download.Clients.Sabnzbd;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.History;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
@@ -12,17 +12,17 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
     {
         private readonly IHistoryService _historyService;
         private readonly QualityUpgradableSpecification _qualityUpgradableSpecification;
-        private readonly IProvideDownloadClient _downloadClientProvider;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public HistorySpecification(IHistoryService historyService,
                                            QualityUpgradableSpecification qualityUpgradableSpecification,
-                                           IProvideDownloadClient downloadClientProvider,
+                                           IConfigService configService,
                                            Logger logger)
         {
             _historyService = historyService;
             _qualityUpgradableSpecification = qualityUpgradableSpecification;
-            _downloadClientProvider = downloadClientProvider;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -36,35 +36,43 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 return Decision.Accept();
             }
 
-            var downloadClients = _downloadClientProvider.GetDownloadClients();
+            var cdhEnabled = _configService.EnableCompletedDownloadHandling;
 
-            foreach (var downloadClient in downloadClients.OfType<Sabnzbd>())
-            {
-                _logger.Debug("Performing history status check on report");
-                foreach (var episode in subject.Episodes)
-                {
-                    _logger.Debug("Checking current status of episode [{0}] in history", episode.Id);
-                    var mostRecent = _historyService.MostRecentForEpisode(episode.Id);
-
-                    if (mostRecent != null && mostRecent.EventType == HistoryEventType.Grabbed)
-                    {
-                        _logger.Debug("Latest history item is downloading, rejecting.");
-                        return Decision.Reject("Download has not been imported yet");
-                    }
-                }
-                return Decision.Accept();
-            }
-
+            _logger.Debug("Performing history status check on report");
             foreach (var episode in subject.Episodes)
             {
-                var bestQualityInHistory = _historyService.GetBestQualityInHistory(subject.Series.Profile, episode.Id);
-                if (bestQualityInHistory != null)
-                {
-                    _logger.Debug("Comparing history quality with report. History is {0}", bestQualityInHistory);
+                _logger.Debug("Checking current status of episode [{0}] in history", episode.Id);
+                var mostRecent = _historyService.MostRecentForEpisode(episode.Id);
 
-                    if (!_qualityUpgradableSpecification.IsUpgradable(subject.Series.Profile, bestQualityInHistory, subject.ParsedEpisodeInfo.Quality))
+                if (mostRecent != null && mostRecent.EventType == HistoryEventType.Grabbed)
+                {
+                    var recent = mostRecent.Date.After(DateTime.UtcNow.AddHours(-12));
+                    var cutoffUnmet = _qualityUpgradableSpecification.CutoffNotMet(subject.Series.Profile, mostRecent.Quality, subject.ParsedEpisodeInfo.Quality);
+                    var upgradeable = _qualityUpgradableSpecification.IsUpgradable(subject.Series.Profile, mostRecent.Quality, subject.ParsedEpisodeInfo.Quality);
+
+                    if (!recent && cdhEnabled)
                     {
-                        return Decision.Reject("Existing file in history is of equal or higher quality: {0}", bestQualityInHistory);
+                        continue;
+                    }
+
+                    if (!cutoffUnmet)
+                    {
+                        if (recent)
+                        {
+                            return Decision.Reject("Recent grab event in history already meets cutoff: {0}", mostRecent.Quality);  
+                        }
+
+                        return Decision.Reject("CDH is disabled and grab event in history already meets cutoff: {0}", mostRecent.Quality);
+                    }
+
+                    if (!upgradeable)
+                    {
+                        if (recent)
+                        {
+                            return Decision.Reject("Recent grab event in history is of equal or higher quality: {0}", mostRecent.Quality);
+                        }
+
+                        return Decision.Reject("CDH is disabled and grab event in history is of equal or higher quality: {0}", mostRecent.Quality);
                     }
                 }
             }

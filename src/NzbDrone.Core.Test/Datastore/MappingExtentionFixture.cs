@@ -24,7 +24,7 @@ namespace NzbDrone.Core.Test.Datastore
             public string PropString { get; set; }
             public int PropInt { get; set; }
             public bool PropBool { get; set; }
-            public Nullable<int> PropNullable { get; set; }
+            public int? PropNullable { get; set; }
             public EmbeddedType Embedded { get; set; }
             public List<EmbeddedType> EmbeddedList { get; set; }
         }
@@ -42,7 +42,7 @@ namespace NzbDrone.Core.Test.Datastore
         {
             MapRepository.Instance.RegisterTypeConverter(typeof(List<EmbeddedType>), new EmbeddedDocumentConverter());
             MapRepository.Instance.RegisterTypeConverter(typeof(EmbeddedType), new EmbeddedDocumentConverter());
-            MapRepository.Instance.RegisterTypeConverter(typeof(Int32), new Int32Converter());
+            MapRepository.Instance.RegisterTypeConverter(typeof(int), new Int32Converter());
             
         }
 

@@ -9,7 +9,7 @@ namespace NzbDrone.Core.Indexers.Newznab
 {
     public class NewznabRssParser : RssParser
     {
-        public const String ns = "{http://www.newznab.com/DTD/2010/feeds/attributes/}";
+        public const string ns = "{http://www.newznab.com/DTD/2010/feeds/attributes/}";
 
         protected override bool PreProcess(IndexerResponse indexerResponse)
         {
@@ -21,9 +21,13 @@ namespace NzbDrone.Core.Indexers.Newznab
             var code = Convert.ToInt32(error.Attribute("code").Value);
             var errorMessage = error.Attribute("description").Value;
 
-            if (code >= 100 && code <= 199) throw new ApiKeyException("Invalid API key");
+            if (code >= 100 && code <= 199)
+            {
+                _logger.Warn("Invalid API Key: {0}", errorMessage);
+                throw new ApiKeyException("Invalid API key");
+            }
 
-            if (!indexerResponse.Request.Url.ToString().Contains("apikey=") && errorMessage == "Missing parameter")
+            if (!indexerResponse.Request.Url.ToString().Contains("apikey=") && (errorMessage == "Missing parameter" || errorMessage.Contains("apikey")))
             {
                 throw new ApiKeyException("Indexer requires an API key");
             }
@@ -33,34 +37,35 @@ namespace NzbDrone.Core.Indexers.Newznab
                 throw new RequestLimitReachedException("API limit reached");
             }
 
-            throw new NewznabException("Newznab error detected: {0}", errorMessage);
+            throw new NewznabException(indexerResponse, errorMessage);
         }
 
         protected override ReleaseInfo ProcessItem(XElement item, ReleaseInfo releaseInfo)
         {
             releaseInfo = base.ProcessItem(item, releaseInfo);
 
+            releaseInfo.TvdbId = GetTvdbId(item);
             releaseInfo.TvRageId = GetTvRageId(item);
 
             return releaseInfo;
         }
 
-        protected override String GetInfoUrl(XElement item)
+        protected override string GetInfoUrl(XElement item)
         {
-            return item.TryGetValue("comments").TrimEnd("#comments");
+            return ParseUrl(item.TryGetValue("comments").TrimEnd("#comments"));
         }
 
-        protected override String GetCommentUrl(XElement item)
+        protected override string GetCommentUrl(XElement item)
         {
-            return item.TryGetValue("comments");
+            return ParseUrl(item.TryGetValue("comments"));
         }
 
-        protected override Int64 GetSize(XElement item)
+        protected override long GetSize(XElement item)
         {
-            Int64 size;
+            long size;
 
             var sizeString = TryGetNewznabAttribute(item, "size");
-            if (!sizeString.IsNullOrWhiteSpace() && Int64.TryParse(sizeString, out size))
+            if (!sizeString.IsNullOrWhiteSpace() && long.TryParse(sizeString, out size))
             {
                 return size;
             }
@@ -87,18 +92,31 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
             {
-                url = item.Element("enclosure").Attribute("url").Value;
+                url = ParseUrl((string)item.Element("enclosure").Attribute("url"));
             }
 
             return url;
         }
 
-        protected virtual Int32 GetTvRageId(XElement item)
+        protected virtual int GetTvdbId(XElement item)
+        {
+            var tvdbIdString = TryGetNewznabAttribute(item, "tvdbid");
+            int tvdbId;
+
+            if (!tvdbIdString.IsNullOrWhiteSpace() && int.TryParse(tvdbIdString, out tvdbId))
+            {
+                return tvdbId;
+            }
+
+            return 0;
+        }
+
+        protected virtual int GetTvRageId(XElement item)
         {
             var tvRageIdString = TryGetNewznabAttribute(item, "rageid");
-            Int32 tvRageId;
+            int tvRageId;
 
-            if (!tvRageIdString.IsNullOrWhiteSpace() && Int32.TryParse(tvRageIdString, out tvRageId))
+            if (!tvRageIdString.IsNullOrWhiteSpace() && int.TryParse(tvRageIdString, out tvRageId))
             {
                 return tvRageId;
             }
@@ -106,9 +124,9 @@ namespace NzbDrone.Core.Indexers.Newznab
             return 0;
         }
 
-        protected String TryGetNewznabAttribute(XElement item, String key, String defaultValue = "")
+        protected string TryGetNewznabAttribute(XElement item, string key, string defaultValue = "")
         {
-            var attr = item.Elements(ns + "attr").SingleOrDefault(e => e.Attribute("name").Value.Equals(key, StringComparison.CurrentCultureIgnoreCase));
+            var attr = item.Elements(ns + "attr").FirstOrDefault(e => e.Attribute("name").Value.Equals(key, StringComparison.CurrentCultureIgnoreCase));
 
             if (attr != null)
             {

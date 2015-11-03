@@ -18,13 +18,13 @@ namespace NzbDrone.Core.Notifications.CustomScript
             get { return "https://github.com/Sonarr/Sonarr/wiki/Custom-Post-Processing-Scripts"; }
         }
 
-        public override void OnGrab(string message)
+        public override void OnGrab(GrabMessage grabMessage)
         {
         }
 
         public override void OnDownload(DownloadMessage message)
         {
-            _customScriptService.OnDownload(message.Series, message.EpisodeFile, Settings);
+            _customScriptService.OnDownload(message.Series, message.EpisodeFile, message.SourcePath, Settings);
         }
 
         public override void OnRename(Series series)

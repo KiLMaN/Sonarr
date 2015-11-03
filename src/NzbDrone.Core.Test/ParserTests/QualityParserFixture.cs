@@ -56,6 +56,7 @@ namespace NzbDrone.Core.Test.ParserTests
         [TestCase("[HorribleSubs] Yowamushi Pedal - 32 [480p]", false)]
         [TestCase("[CR] Sailor Moon - 004 [480p][48CE2D0F]", false)]
         [TestCase("[Hatsuyuki] Naruto Shippuuden - 363 [848x480][ADE35E38]", false)]
+        [TestCase("Muppet.Babies.S03.TVRip.XviD-NOGRP", false)]
         public void should_parse_sdtv_quality(string title, bool proper)
         {
             ParseAndVerifyQuality(title, Quality.SDTV, proper);
@@ -211,7 +212,7 @@ namespace NzbDrone.Core.Test.ParserTests
         [Test, TestCaseSource("SelfQualityParserCases")]
         public void parsing_our_own_quality_enum_name(Quality quality)
         {
-            var fileName = String.Format("My series S01E01 [{0}]", quality.Name);
+            var fileName = string.Format("My series S01E01 [{0}]", quality.Name);
             var result = QualityParser.ParseQuality(fileName);
             result.Quality.Should().Be(quality);
         }
@@ -221,7 +222,7 @@ namespace NzbDrone.Core.Test.ParserTests
         {
             foreach (var c in new char[] { '-', '.', ' ', '_' })
             {
-                var title = String.Format("My series S01E01 {0}", qualityString.Replace(' ', c));
+                var title = string.Format("My series S01E01 {0}", qualityString.Replace(' ', c));
 
                 ParseAndVerifyQuality(title, quality, false);
             }

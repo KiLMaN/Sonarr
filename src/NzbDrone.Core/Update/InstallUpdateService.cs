@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using NLog;
 using NzbDrone.Common;
 using NzbDrone.Common.Disk;
@@ -146,7 +145,7 @@ namespace NzbDrone.Core.Update
             }
         }
 
-        private void InstallUpdateWithScript(String updateSandboxFolder)
+        private void InstallUpdateWithScript(string updateSandboxFolder)
         {
             var scriptPath = _configFileProvider.UpdateScriptPath;
 
@@ -172,7 +171,7 @@ namespace NzbDrone.Core.Update
             var processId = _processProvider.GetCurrentProcess().Id.ToString();
             var executingApplication = _runtimeInfo.ExecutingApplication;
 
-            return String.Join(" ", processId, updateSandboxFolder.TrimEnd(Path.DirectorySeparatorChar).WrapInQuotes(), executingApplication.WrapInQuotes(), _startupContext.PreservedArguments);
+            return string.Join(" ", processId, updateSandboxFolder.TrimEnd(Path.DirectorySeparatorChar).WrapInQuotes(), executingApplication.WrapInQuotes(), _startupContext.PreservedArguments);
         }
 
         private void EnsureAppDataSafety()

@@ -30,16 +30,16 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests
                 .Returns(30);
 
             Mocker.GetMock<IParsingService>()
-                .Setup(s => s.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), (SearchCriteriaBase)null))
+                .Setup(s => s.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), (SearchCriteriaBase)null))
                 .Returns(() => CreateRemoteEpisode());
 
             Mocker.GetMock<IHttpClient>()
                   .Setup(s => s.Get(It.IsAny<HttpRequest>()))
-                  .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0]));
+                  .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0]));
 
             Mocker.GetMock<IRemotePathMappingService>()
-                .Setup(v => v.RemapRemoteToLocal(It.IsAny<String>(), It.IsAny<OsPath>()))
-                .Returns<String, OsPath>((h, r) => r);
+                .Setup(v => v.RemapRemoteToLocal(It.IsAny<string>(), It.IsAny<OsPath>()))
+                .Returns<string, OsPath>((h, r) => r);
         }
 
         protected virtual RemoteEpisode CreateRemoteEpisode()

@@ -9,7 +9,7 @@ namespace NzbDrone.Api.Extensions.Pipelines
     {
         public void Register(IPipelines pipelines)
         {
-            pipelines.AfterRequest.AddItemToEndOfPipeline(Handle);
+            pipelines.AfterRequest.AddItemToEndOfPipeline((Action<NancyContext>) Handle);
         }
 
         private void Handle(NancyContext context)
@@ -31,7 +31,7 @@ namespace NzbDrone.Api.Extensions.Pipelines
                 allowedMethods = response.Headers["Allow"];
             }
             
-            var requestedHeaders = String.Join(", ", request.Headers[AccessControlHeaders.RequestHeaders]);
+            var requestedHeaders = string.Join(", ", request.Headers[AccessControlHeaders.RequestHeaders]);
 
             response.Headers.Add(AccessControlHeaders.AllowOrigin, "*");
             response.Headers.Add(AccessControlHeaders.AllowMethods, allowedMethods);

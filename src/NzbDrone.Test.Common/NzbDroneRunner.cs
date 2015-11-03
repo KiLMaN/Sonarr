@@ -61,6 +61,7 @@ namespace NzbDrone.Test.Common
 
                 var request = new RestRequest("system/status");
                 request.AddHeader("Authorization", ApiKey);
+                request.AddHeader("X-Api-Key", ApiKey);
 
                 var statusCall = _restClient.Get(request);
 
@@ -78,6 +79,11 @@ namespace NzbDrone.Test.Common
 
         public void KillAll()
         {
+            if (_nzbDroneProcess != null)
+            {
+                _processProvider.Kill(_nzbDroneProcess.Id);                
+            }
+
             _processProvider.KillAll(ProcessProvider.NZB_DRONE_CONSOLE_PROCESS_NAME);
             _processProvider.KillAll(ProcessProvider.NZB_DRONE_PROCESS_NAME);
         }

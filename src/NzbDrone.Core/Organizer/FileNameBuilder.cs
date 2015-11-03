@@ -16,11 +16,11 @@ namespace NzbDrone.Core.Organizer
     public interface IBuildFileNames
     {
         string BuildFileName(List<Episode> episodes, Series series, EpisodeFile episodeFile, NamingConfig namingConfig = null);
-        string BuildFilePath(Series series, Int32 seasonNumber, String fileName, String extension);
-        string BuildSeasonPath(Series series, Int32 seasonNumber);
+        string BuildFilePath(Series series, int seasonNumber, string fileName, string extension);
+        string BuildSeasonPath(Series series, int seasonNumber);
         BasicNamingConfig GetBasicNamingConfig(NamingConfig nameSpec);
         string GetSeriesFolder(Series series, NamingConfig namingConfig = null);
-        string GetSeasonFolder(Series series, Int32 seasonNumber, NamingConfig namingConfig = null);
+        string GetSeasonFolder(Series series, int seasonNumber, NamingConfig namingConfig = null);
     }
 
     public class FileNameBuilder : IBuildFileNames
@@ -105,7 +105,7 @@ namespace NzbDrone.Core.Organizer
             }
 
             var pattern = namingConfig.StandardEpisodeFormat;
-            var tokenHandlers = new Dictionary<String, Func<TokenMatch, String>>(FileNameBuilderTokenEqualityComparer.Instance);
+            var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
             episodes = episodes.OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList();
 
@@ -128,9 +128,9 @@ namespace NzbDrone.Core.Organizer
             AddQualityTokens(tokenHandlers, series, episodeFile);
             AddMediaInfoTokens(tokenHandlers, episodeFile);
             
-            var fileName = ReplaceTokens(pattern, tokenHandlers).Trim();
+            var fileName = ReplaceTokens(pattern, tokenHandlers, namingConfig).Trim();
             fileName = FileNameCleanupRegex.Replace(fileName, match => match.Captures[0].Value[0].ToString());
-            fileName = TrimSeparatorsRegex.Replace(fileName, String.Empty);
+            fileName = TrimSeparatorsRegex.Replace(fileName, string.Empty);
 
             return fileName;
         }
@@ -220,38 +220,38 @@ namespace NzbDrone.Core.Organizer
                 namingConfig = _namingConfigService.GetConfig();
             }
 
-            var tokenHandlers = new Dictionary<string, Func<TokenMatch, String>>(FileNameBuilderTokenEqualityComparer.Instance);
+            var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
             AddSeriesTokens(tokenHandlers, series);
 
-            return CleanFolderName(ReplaceTokens(namingConfig.SeriesFolderFormat, tokenHandlers));
+            return CleanFolderName(ReplaceTokens(namingConfig.SeriesFolderFormat, tokenHandlers, namingConfig));
         }
 
-        public string GetSeasonFolder(Series series, Int32 seasonNumber, NamingConfig namingConfig = null)
+        public string GetSeasonFolder(Series series, int seasonNumber, NamingConfig namingConfig = null)
         {
             if (namingConfig == null)
             {
                 namingConfig = _namingConfigService.GetConfig();
             }
 
-            var tokenHandlers = new Dictionary<string, Func<TokenMatch, String>>(FileNameBuilderTokenEqualityComparer.Instance);
+            var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
 
             AddSeriesTokens(tokenHandlers, series);
             AddSeasonTokens(tokenHandlers, seasonNumber);
 
-            return CleanFolderName(ReplaceTokens(namingConfig.SeasonFolderFormat, tokenHandlers));
+            return CleanFolderName(ReplaceTokens(namingConfig.SeasonFolderFormat, tokenHandlers, namingConfig));
         }
 
         public static string CleanTitle(string title)
         {
             title = title.Replace("&", "and");
             title = ScenifyReplaceChars.Replace(title, " ");
-            title = ScenifyRemoveChars.Replace(title, String.Empty);
+            title = ScenifyRemoveChars.Replace(title, string.Empty);
 
             return title;
         }
 
-        public static string CleanFileName(string name)
+        public static string CleanFileName(string name, bool replace = true)
         {
             string result = name;
             string[] badCharacters = { "\\", "/", "<", ">", "?", "*", ":", "|", "\"" };
@@ -259,7 +259,7 @@ namespace NzbDrone.Core.Organizer
 
             for (int i = 0; i < badCharacters.Length; i++)
             {
-                result = result.Replace(badCharacters[i], goodCharacters[i]);
+                result = result.Replace(badCharacters[i], replace ? goodCharacters[i] : string.Empty);
             }
 
             return result.Trim();
@@ -271,13 +271,13 @@ namespace NzbDrone.Core.Organizer
             return name.Trim(' ', '.');
         }
 
-        private void AddSeriesTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, Series series)
+        private void AddSeriesTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Series series)
         {
             tokenHandlers["{Series Title}"] = m => series.Title;
             tokenHandlers["{Series CleanTitle}"] = m => CleanTitle(series.Title);
         }
 
-        private String AddSeasonEpisodeNumberingTokens(String pattern, Dictionary<String, Func<TokenMatch, String>> tokenHandlers, List<Episode> episodes, NamingConfig namingConfig)
+        private string AddSeasonEpisodeNumberingTokens(string pattern, Dictionary<string, Func<TokenMatch, string>> tokenHandlers, List<Episode> episodes, NamingConfig namingConfig)
         {
             var episodeFormats = GetEpisodeFormat(pattern).DistinctBy(v => v.SeasonEpisodePattern).ToList();
 
@@ -321,7 +321,7 @@ namespace NzbDrone.Core.Organizer
                         break;
                 }
 
-                var token = String.Format("{{Season Episode{0}}}", index++);
+                var token = string.Format("{{Season Episode{0}}}", index++);
                 pattern = pattern.Replace(episodeFormat.SeasonEpisodePattern, token);
                 tokenHandlers[token] = m => seasonEpisodePattern;
             }
@@ -340,7 +340,7 @@ namespace NzbDrone.Core.Organizer
             return pattern;
         }
 
-        private String AddAbsoluteNumberingTokens(String pattern, Dictionary<String, Func<TokenMatch, String>> tokenHandlers, Series series, List<Episode> episodes, NamingConfig namingConfig)
+        private string AddAbsoluteNumberingTokens(string pattern, Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Series series, List<Episode> episodes, NamingConfig namingConfig)
         {
             var absoluteEpisodeFormats = GetAbsoluteFormat(pattern).DistinctBy(v => v.AbsoluteEpisodePattern).ToList();
 
@@ -393,7 +393,7 @@ namespace NzbDrone.Core.Organizer
                         break;
                 }
 
-                var token = String.Format("{{Absolute Pattern{0}}}", index++);
+                var token = string.Format("{{Absolute Pattern{0}}}", index++);
                 pattern = pattern.Replace(absoluteEpisodeFormat.AbsoluteEpisodePattern, token);
                 tokenHandlers[token] = m => absoluteEpisodePattern;
             }
@@ -401,12 +401,12 @@ namespace NzbDrone.Core.Organizer
             return pattern;
         }
 
-        private void AddSeasonTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, Int32 seasonNumber)
+        private void AddSeasonTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, int seasonNumber)
         {
             tokenHandlers["{Season}"] = m => seasonNumber.ToString(m.CustomFormat);
         }
 
-        private void AddEpisodeTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, List<Episode> episodes)
+        private void AddEpisodeTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, List<Episode> episodes)
         {
             if (!episodes.First().AirDate.IsNullOrWhiteSpace())
             {
@@ -421,28 +421,28 @@ namespace NzbDrone.Core.Organizer
             tokenHandlers["{Episode CleanTitle}"] = m => CleanTitle(GetEpisodeTitle(episodes, "and"));
         }
 
-        private void AddEpisodeFileTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, EpisodeFile episodeFile)
+        private void AddEpisodeFileTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, EpisodeFile episodeFile)
         {
             tokenHandlers["{Original Title}"] = m => GetOriginalTitle(episodeFile);
             tokenHandlers["{Original Filename}"] = m => GetOriginalFileName(episodeFile);
             tokenHandlers["{Release Group}"] = m => episodeFile.ReleaseGroup ?? "Sonarr";
         }
 
-        private void AddQualityTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, Series series, EpisodeFile episodeFile)
+        private void AddQualityTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Series series, EpisodeFile episodeFile)
         {
             var qualityTitle = _qualityDefinitionService.Get(episodeFile.Quality.Quality).Title;
             var qualityProper = GetQualityProper(series, episodeFile.Quality);
 
-            tokenHandlers["{Quality Full}"] = m => String.Format("{0} {1}", qualityTitle, qualityProper);
+            tokenHandlers["{Quality Full}"] = m => string.Format("{0} {1}", qualityTitle, qualityProper);
             tokenHandlers["{Quality Title}"] = m => qualityTitle;
             tokenHandlers["{Quality Proper}"] = m => qualityProper;
         }
 
-        private void AddMediaInfoTokens(Dictionary<String, Func<TokenMatch, String>> tokenHandlers, EpisodeFile episodeFile)
+        private void AddMediaInfoTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, EpisodeFile episodeFile)
         {
             if (episodeFile.MediaInfo == null) return;
 
-            String mediaInfoVideo;
+            string mediaInfoVideo;
             switch (episodeFile.MediaInfo.VideoCodec)
             {
                 case "AVC":
@@ -472,7 +472,7 @@ namespace NzbDrone.Core.Organizer
                     break;
             }
 
-            String mediaInfoAudio;
+            string mediaInfoAudio;
             switch (episodeFile.MediaInfo.AudioFormat)
             {
                 case "AC-3":
@@ -502,18 +502,18 @@ namespace NzbDrone.Core.Organizer
             var mediaInfoAudioLanguages = GetLanguagesToken(episodeFile.MediaInfo.AudioLanguages);
             if (!mediaInfoAudioLanguages.IsNullOrWhiteSpace())
             {
-                mediaInfoAudioLanguages = String.Format("[{0}]", mediaInfoAudioLanguages);
+                mediaInfoAudioLanguages = string.Format("[{0}]", mediaInfoAudioLanguages);
             }
 
             /*if (mediaInfoAudioLanguages == "[EN]")
             {
-                mediaInfoAudioLanguages = String.Empty;
+                mediaInfoAudioLanguages = string.Empty;
             }*/
 
             var mediaInfoSubtitleLanguages = GetLanguagesToken(episodeFile.MediaInfo.Subtitles);
             if (!mediaInfoSubtitleLanguages.IsNullOrWhiteSpace())
             {
-                mediaInfoSubtitleLanguages = String.Format("[ST {0}]", mediaInfoSubtitleLanguages);
+                mediaInfoSubtitleLanguages = string.Format("[ST {0}]", mediaInfoSubtitleLanguages);
             }
 
             tokenHandlers["{MediaInfo Video}"] = m => mediaInfoVideo;
@@ -521,12 +521,12 @@ namespace NzbDrone.Core.Organizer
             tokenHandlers["{MediaInfo SubtitleLanguage}"] = m => mediaInfoSubtitleLanguages;
             tokenHandlers["{MediaInfo AudioLanguage}"] = m => mediaInfoAudioLanguages;
 
-            tokenHandlers["{MediaInfo Simple}"] = m => String.Format("{0} {1}", mediaInfoVideo, mediaInfoAudio);
+            tokenHandlers["{MediaInfo Simple}"] = m => string.Format("{0} {1}", mediaInfoVideo, mediaInfoAudio);
 
-            tokenHandlers["{MediaInfo Full}"] = m => String.Format("{0} {1}{2} {3}", mediaInfoVideo, mediaInfoAudio, mediaInfoAudioLanguages, mediaInfoSubtitleLanguages);
+            tokenHandlers["{MediaInfo Full}"] = m => string.Format("{0} {1}{2} {3}", mediaInfoVideo, mediaInfoAudio, mediaInfoAudioLanguages, mediaInfoSubtitleLanguages);
         }
 
-        private string GetLanguagesToken(String mediaInfoLanguages)
+        private string GetLanguagesToken(string mediaInfoLanguages)
         {
             List<string> tokens = new List<string>();
             foreach (var item in mediaInfoLanguages.Split('/'))
@@ -553,12 +553,12 @@ namespace NzbDrone.Core.Organizer
             return string.Join("+", tokens.Distinct());
         }
 
-        private string ReplaceTokens(String pattern, Dictionary<String, Func<TokenMatch, String>> tokenHandlers)
+        private string ReplaceTokens(string pattern, Dictionary<string, Func<TokenMatch, string>> tokenHandlers, NamingConfig namingConfig)
         {
-            return TitleRegex.Replace(pattern, match => ReplaceToken(match, tokenHandlers));
+            return TitleRegex.Replace(pattern, match => ReplaceToken(match, tokenHandlers, namingConfig));
         }
 
-        private string ReplaceToken(Match match, Dictionary<String, Func<TokenMatch, String>> tokenHandlers)
+        private string ReplaceToken(Match match, Dictionary<string, Func<TokenMatch, string>> tokenHandlers, NamingConfig namingConfig)
         {
             var tokenMatch = new TokenMatch
             {
@@ -575,15 +575,15 @@ namespace NzbDrone.Core.Organizer
                 tokenMatch.CustomFormat = null;
             }
 
-            var tokenHandler = tokenHandlers.GetValueOrDefault(tokenMatch.Token, m => String.Empty);
+            var tokenHandler = tokenHandlers.GetValueOrDefault(tokenMatch.Token, m => string.Empty);
 
             var replacementText = tokenHandler(tokenMatch).Trim();
 
-            if (tokenMatch.Token.All(t => !Char.IsLetter(t) || Char.IsLower(t)))
+            if (tokenMatch.Token.All(t => !char.IsLetter(t) || char.IsLower(t)))
             {
                 replacementText = replacementText.ToLower();
             }
-            else if (tokenMatch.Token.All(t => !Char.IsLetter(t) || Char.IsUpper(t)))
+            else if (tokenMatch.Token.All(t => !char.IsLetter(t) || char.IsUpper(t)))
             {
                 replacementText = replacementText.ToUpper();
             }
@@ -593,7 +593,7 @@ namespace NzbDrone.Core.Organizer
                 replacementText = replacementText.Replace(" ", tokenMatch.Separator);
             }
 
-            replacementText = CleanFileName(replacementText);
+            replacementText = CleanFileName(replacementText, namingConfig.ReplaceIllegalCharacters);
 
             if (!replacementText.IsNullOrWhiteSpace())
             {
@@ -605,7 +605,7 @@ namespace NzbDrone.Core.Organizer
 
         private string FormatNumberTokens(string basePattern, string formatPattern, List<Episode> episodes)
         {
-            var pattern = String.Empty;
+            var pattern = string.Empty;
 
             for (int i = 0; i < episodes.Count; i++)
             {
@@ -619,7 +619,7 @@ namespace NzbDrone.Core.Organizer
 
         private string FormatAbsoluteNumberTokens(string basePattern, string formatPattern, List<Episode> episodes)
         {
-            var pattern = String.Empty;
+            var pattern = string.Empty;
 
             for (int i = 0; i < episodes.Count; i++)
             {
@@ -677,7 +677,7 @@ namespace NzbDrone.Core.Organizer
 
         private string GetEpisodeTitle(List<Episode> episodes, string separator)
         {
-            separator = String.Format(" {0} ", separator.Trim());
+            separator = string.Format(" {0} ", separator.Trim());
 
             if (episodes.Count == 1)
             {
@@ -689,7 +689,7 @@ namespace NzbDrone.Core.Organizer
                 .Select(CleanupEpisodeTitle)
                 .Distinct();
 
-            return String.Join(separator, titles);
+            return string.Join(separator, titles);
         }
 
         private string CleanupEpisodeTitle(string title)
@@ -710,7 +710,7 @@ namespace NzbDrone.Core.Organizer
                 return "Proper";
             }
 
-            return String.Empty;
+            return string.Empty;
         }
 
         private string GetOriginalTitle(EpisodeFile episodeFile)
@@ -737,11 +737,11 @@ namespace NzbDrone.Core.Organizer
     internal sealed class TokenMatch
     {
         public Match RegexMatch { get; set; }
-        public String Prefix { get; set; }
-        public String Separator { get; set; }
-        public String Suffix { get; set; }
-        public String Token { get; set; }
-        public String CustomFormat { get; set; }
+        public string Prefix { get; set; }
+        public string Separator { get; set; }
+        public string Suffix { get; set; }
+        public string Token { get; set; }
+        public string CustomFormat { get; set; }
     }
 
     public enum MultiEpisodeStyle
