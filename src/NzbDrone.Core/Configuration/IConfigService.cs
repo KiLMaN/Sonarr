@@ -31,7 +31,7 @@ namespace NzbDrone.Core.Configuration
         bool AutoDownloadPropers { get; set; }
         bool CreateEmptySeriesFolders { get; set; }
         FileDateType FileDate { get; set; }
-        //bool SkipFreeSpaceCheckWhenImporting { get; set; }
+       	bool SkipFreeSpaceCheckWhenImporting { get; set; }
         //bool CopyUsingHardlinks { get; set; }
 	//bool CopyUsingSymboliclinks { get; set; }
 	Int32  ActionOnGrab { get; set; }

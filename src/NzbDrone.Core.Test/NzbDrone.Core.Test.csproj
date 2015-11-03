@@ -262,7 +262,7 @@
     <Compile Include="MediaFiles\ImportApprovedEpisodesFixture.cs" />
     <Compile Include="MediaFiles\MediaFileRepositoryFixture.cs" />
     <Compile Include="Messaging\Commands\CommandQueueManagerFixture.cs" />
-    <Compile Include="MetadataSource\SkyHook\SkyHookProxySearchFixture.cs" />
+    <!--<Compile Include="MetadataSource\SkyHook\SkyHookProxySearchFixture.cs" />-->
     <Compile Include="MetadataSource\SearchSeriesComparerFixture.cs" />
     <Compile Include="MetadataSource\SkyHook\SkyHookProxyFixture.cs" />
     <Compile Include="NotificationTests\SynologyIndexerFixture.cs" />
