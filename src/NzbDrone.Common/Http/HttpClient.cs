@@ -1,11 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.EnvironmentInfo;
-using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.TPL;
 
 namespace NzbDrone.Common.Http
@@ -27,19 +29,33 @@ namespace NzbDrone.Common.Http
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
         private readonly ICached<bool> _curlTLSFallbackCache;
+        private readonly List<IHttpRequestInterceptor> _requestInterceptors;
+        private readonly IHttpDispatcher _httpDispatcher;
 
-        public HttpClient(ICacheManager cacheManager, IRateLimitService rateLimitService, Logger logger)
+        public HttpClient(IEnumerable<IHttpRequestInterceptor> requestInterceptors, ICacheManager cacheManager, IRateLimitService rateLimitService, IHttpDispatcher httpDispatcher, Logger logger)
         {
             _logger = logger;
             _rateLimitService = rateLimitService;
+            _requestInterceptors = requestInterceptors.ToList();
             ServicePointManager.DefaultConnectionLimit = 12;
+            _httpDispatcher = httpDispatcher;
 
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
-            _curlTLSFallbackCache = cacheManager.GetCache<bool>(typeof(HttpClient), "curlTLSFallback");
+        }
+
+        public HttpClient(IEnumerable<IHttpRequestInterceptor> requestInterceptors, ICacheManager cacheManager, IRateLimitService rateLimitService, Logger logger)
+            : this(requestInterceptors, cacheManager, rateLimitService, null, logger)
+        {
+            _httpDispatcher = new FallbackHttpDispatcher(cacheManager.GetCache<bool>(typeof(HttpClient), "curlTLSFallback"), _logger);
         }
 
         public HttpResponse Execute(HttpRequest request)
         {
+            foreach (var interceptor in _requestInterceptors)
+            {
+                request = interceptor.PreRequest(request);
+            }
+
             if (request.RateLimit != TimeSpan.Zero)
             {
                 _rateLimitService.WaitAndPulse(request.Url.Host, request.RateLimit);
@@ -47,46 +63,27 @@ namespace NzbDrone.Common.Http
 
             _logger.Trace(request);
 
-            var webRequest = (HttpWebRequest)WebRequest.Create(request.Url);
-
-            // Deflate is not a standard and could break depending on implementation.
-            // we should just stick with the more compatible Gzip
-            //http://stackoverflow.com/questions/8490718/how-to-decompress-stream-deflated-with-java-util-zip-deflater-in-net
-            webRequest.AutomaticDecompression = DecompressionMethods.GZip;
-
-            webRequest.Credentials = request.NetworkCredential;
-            webRequest.Method = request.Method.ToString();
-            webRequest.UserAgent = UserAgentBuilder.UserAgent;
-            webRequest.KeepAlive = false;
-            webRequest.AllowAutoRedirect = request.AllowAutoRedirect;
-            webRequest.ContentLength = 0;
-
-            if (!RuntimeInfoBase.IsProduction)
-            {
-                webRequest.AllowAutoRedirect = false;
-            }
-
             var stopWatch = Stopwatch.StartNew();
 
-            if (request.Headers != null)
-            {
-                AddRequestHeaders(webRequest, request.Headers);
-            }
+            var cookies = PrepareRequestCookies(request);
 
-            PrepareRequestCookies(request, webRequest);
+            var response = _httpDispatcher.GetResponse(request, cookies);
 
-            var response = ExecuteRequest(request, webRequest);
-
-            HandleResponseCookies(request, webRequest);
+            HandleResponseCookies(request, cookies);
 
             stopWatch.Stop();
 
             _logger.Trace("{0} ({1:n0} ms)", response, stopWatch.ElapsedMilliseconds);
 
-            if (request.AllowAutoRedirect && !RuntimeInfoBase.IsProduction &&
+            foreach (var interceptor in _requestInterceptors)
+            {
+                response = interceptor.PostResponse(response);
+            }
+
+            if (!RuntimeInfoBase.IsProduction &&
                 (response.StatusCode == HttpStatusCode.Moved ||
-                response.StatusCode == HttpStatusCode.MovedPermanently ||
-                response.StatusCode == HttpStatusCode.Found))
+                 response.StatusCode == HttpStatusCode.MovedPermanently ||
+                 response.StatusCode == HttpStatusCode.Found))
             {
                 _logger.Error("Server requested a redirect to [" + response.Headers["Location"] + "]. Update the request URL to avoid this redirect.");
             }
@@ -108,7 +105,7 @@ namespace NzbDrone.Common.Http
             return response;
         }
 
-        private void PrepareRequestCookies(HttpRequest request, HttpWebRequest webRequest)
+        private CookieContainer PrepareRequestCookies(HttpRequest request)
         {
             lock (_cookieContainerCache)
             {
@@ -120,28 +117,24 @@ namespace NzbDrone.Common.Http
                     {
                         persistentCookieContainer.Add(new Cookie(pair.Key, pair.Value, "/", request.Url.Host)
                         {
-                            Expires = DateTime.UtcNow.AddHours(1)
+                            // Use Now rather than UtcNow to work around Mono cookie expiry bug.
+                            // See https://gist.github.com/ta264/7822b1424f72e5b4c961
+                            Expires = DateTime.Now.AddHours(1)
                         });
                     }
                 }
 
                 var requestCookies = persistentCookieContainer.GetCookies(request.Url);
 
-                if (requestCookies.Count == 0 && !request.StoreResponseCookie)
-                {
-                    return;
-                }
+                var cookieContainer = new CookieContainer();
 
-                if (webRequest.CookieContainer == null)
-                {
-                    webRequest.CookieContainer = new CookieContainer();
-                }
+                cookieContainer.Add(requestCookies);
 
-                webRequest.CookieContainer.Add(requestCookies);
+                return cookieContainer;
             }
         }
 
-        private void HandleResponseCookies(HttpRequest request, HttpWebRequest webRequest)
+        private void HandleResponseCookies(HttpRequest request, CookieContainer cookieContainer)
         {
             if (!request.StoreResponseCookie)
             {
@@ -152,95 +145,10 @@ namespace NzbDrone.Common.Http
             {
                 var persistentCookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
 
-                var cookies = webRequest.CookieContainer.GetCookies(request.Url);
+                var cookies = cookieContainer.GetCookies(request.Url);
 
                 persistentCookieContainer.Add(cookies);
             }
-        }
-
-        private HttpResponse ExecuteRequest(HttpRequest request, HttpWebRequest webRequest)
-        {
-            if (OsInfo.IsMonoRuntime && webRequest.RequestUri.Scheme == "https")
-            {
-                if (!_curlTLSFallbackCache.Find(webRequest.RequestUri.Host))
-                {
-                    try
-                    {
-                        return ExecuteWebRequest(request, webRequest);
-                    }
-                    catch (Exception ex)
-                    {
-                        if (ex.ToString().Contains("The authentication or decryption has failed."))
-                        {
-                            _logger.Debug("https request failed in tls error for {0}, trying curl fallback.", webRequest.RequestUri.Host);
-
-                            _curlTLSFallbackCache.Set(webRequest.RequestUri.Host, true);
-                        }
-                        else
-                        {
-                            throw;
-                        }
-                    }
-                }
-
-                if (CurlHttpClient.CheckAvailability())
-                {
-                    return ExecuteCurlRequest(request, webRequest);
-                }
-
-                _logger.Trace("Curl not available, using default WebClient.");
-            }
-            
-            return ExecuteWebRequest(request, webRequest);
-        }
-
-        private HttpResponse ExecuteCurlRequest(HttpRequest request, HttpWebRequest webRequest)
-        {
-            var curlClient = new CurlHttpClient();
-
-            return curlClient.GetResponse(request, webRequest);
-        }
-
-        private HttpResponse ExecuteWebRequest(HttpRequest request, HttpWebRequest webRequest)
-        {
-            if (!request.Body.IsNullOrWhiteSpace())
-            {
-                var bytes = request.Headers.GetEncodingFromContentType().GetBytes(request.Body.ToCharArray());
-
-                webRequest.ContentLength = bytes.Length;
-                using (var writeStream = webRequest.GetRequestStream())
-                {
-                    writeStream.Write(bytes, 0, bytes.Length);
-                }
-            }
-
-            HttpWebResponse httpWebResponse;
-
-            try
-            {
-                httpWebResponse = (HttpWebResponse)webRequest.GetResponse();
-            }
-            catch (WebException e)
-            {
-                httpWebResponse = (HttpWebResponse)e.Response;
-
-                if (httpWebResponse == null)
-                {
-                    throw;
-                }
-            }
-
-            Byte[] data = null;
-
-            using (var responseStream = httpWebResponse.GetResponseStream())
-            {
-                if (responseStream != null)
-                {
-                    data = responseStream.ToBytes();
-                }
-            }
-
-            return new HttpResponse(request, new HttpHeader(httpWebResponse.Headers), data, httpWebResponse.StatusCode);
         }
 
         public void DownloadFile(string url, string fileName)
@@ -302,57 +210,6 @@ namespace NzbDrone.Common.Http
         {
             var response = Post(request);
             return new HttpResponse<T>(response);
-        }
-
-        protected virtual void AddRequestHeaders(HttpWebRequest webRequest, HttpHeader headers)
-        {
-            foreach (var header in headers)
-            {
-                switch (header.Key)
-                {
-                    case "Accept":
-                        webRequest.Accept = header.Value.ToString();
-                        break;
-                    case "Connection":
-                        webRequest.Connection = header.Value.ToString();
-                        break;
-                    case "Content-Length":
-                        webRequest.ContentLength = Convert.ToInt64(header.Value);
-                        break;
-                    case "Content-Type":
-                        webRequest.ContentType = header.Value.ToString();
-                        break;
-                    case "Date":
-                        webRequest.Date = (DateTime)header.Value;
-                        break;
-                    case "Expect":
-                        webRequest.Expect = header.Value.ToString();
-                        break;
-                    case "Host":
-                        webRequest.Host = header.Value.ToString();
-                        break;
-                    case "If-Modified-Since":
-                        webRequest.IfModifiedSince = (DateTime)header.Value;
-                        break;
-                    case "Range":
-                        throw new NotImplementedException();
-                        break;
-                    case "Referer":
-                        webRequest.Referer = header.Value.ToString();
-                        break;
-                    case "Transfer-Encoding":
-                        webRequest.TransferEncoding = header.Value.ToString();
-                        break;
-                    case "User-Agent":
-                        throw new NotSupportedException("User-Agent other than Sonarr not allowed.");
-                    case "Proxy-Connection":
-                        throw new NotImplementedException();
-                        break;
-                    default:
-                        webRequest.Headers.Add(header.Key, header.Value.ToString());
-                        break;
-                }
-            }
         }
     }
 }

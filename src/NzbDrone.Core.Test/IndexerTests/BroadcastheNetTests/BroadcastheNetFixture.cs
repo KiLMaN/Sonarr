@@ -51,6 +51,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
             torrentInfo.PublishDate.Should().Be(DateTime.Parse("2014/09/16 21:15:33"));
             torrentInfo.Size.Should().Be(505099926);
             torrentInfo.InfoHash.Should().Be("123");
+            torrentInfo.TvdbId.Should().Be(71998);
             torrentInfo.TvRageId.Should().Be(4055);
             torrentInfo.MagnetUrl.Should().BeNullOrEmpty();
             torrentInfo.Peers.Should().Be(40+9);
@@ -68,7 +69,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
         {
             Mocker.GetMock<IHttpClient>()
                 .Setup(v => v.Execute(It.IsAny<HttpRequest>()))
-                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0], System.Net.HttpStatusCode.BadRequest));
+                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0], System.Net.HttpStatusCode.BadRequest));
 
             var results = Subject.FetchRecent();
 
@@ -84,7 +85,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
         {
             Mocker.GetMock<IHttpClient>()
                 .Setup(v => v.Execute(It.IsAny<HttpRequest>()))
-                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0], System.Net.HttpStatusCode.Unauthorized));
+                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0], System.Net.HttpStatusCode.Unauthorized));
 
             var results = Subject.FetchRecent();
 
@@ -100,7 +101,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
         {
             Mocker.GetMock<IHttpClient>()
                 .Setup(v => v.Execute(It.IsAny<HttpRequest>()))
-                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0], System.Net.HttpStatusCode.NotFound));
+                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0], System.Net.HttpStatusCode.NotFound));
 
             var results = Subject.FetchRecent();
 
@@ -116,7 +117,7 @@ namespace NzbDrone.Core.Test.IndexerTests.BroadcastheNetTests
         {
             Mocker.GetMock<IHttpClient>()
                 .Setup(v => v.Execute(It.IsAny<HttpRequest>()))
-                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new Byte[0], System.Net.HttpStatusCode.ServiceUnavailable));
+                .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0], System.Net.HttpStatusCode.ServiceUnavailable));
 
             var results = Subject.FetchRecent();
 

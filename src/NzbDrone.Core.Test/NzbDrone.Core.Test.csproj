@@ -210,6 +210,7 @@
     <Compile Include="Housekeeping\Housekeepers\CleanupOrphanedMetadataFilesFixture.cs" />
     <Compile Include="Housekeeping\Housekeepers\CleanupOrphanedPendingReleasesFixture.cs" />
     <Compile Include="Housekeeping\Housekeepers\FixFutureRunScheduledTasksFixture.cs" />
+    <Compile Include="Http\TorCacheHttpRequestInterceptorFixture.cs" />
     <Compile Include="IndexerSearchTests\SeriesSearchServiceFixture.cs" />
     <Compile Include="IndexerSearchTests\NzbSearchServiceFixture.cs" />
     <Compile Include="IndexerSearchTests\SearchDefinitionFixture.cs" />
@@ -225,8 +226,6 @@
     <Compile Include="IndexerTests\TorrentRssIndexerTests\TorrentRssParserFactoryFixture.cs" />
     <Compile Include="IndexerTests\TorrentRssIndexerTests\TorrentRssSettingsDetectorFixture.cs" />
     <Compile Include="IndexerTests\TorznabTests\TorznabFixture.cs" />
-    <Compile Include="IndexerTests\TorznabTests\TorznabRequestGeneratorFixture.cs" />
-    <Compile Include="IndexerTests\TorznabTests\TorznabSettingFixture.cs" />
     <Compile Include="IndexerTests\NewznabTests\NewznabFixture.cs" />
     <Compile Include="IndexerTests\NewznabTests\NewznabRequestGeneratorFixture.cs" />
     <Compile Include="IndexerTests\NewznabTests\NewznabSettingFixture.cs" />
@@ -403,14 +402,13 @@
     <Content Include="Files\emptyfile.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Files\Indexers\relative_urls.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Files\Indexers\TorrentRss\Doki.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Files\Indexers\TorrentRss\invalid\Eztv_InvalidSize.xml">
-      <SubType>Designer</SubType>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Files\Indexers\TorrentRss\invalid\Eztv_InvalidDownloadUrl.xml">
       <SubType>Designer</SubType>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

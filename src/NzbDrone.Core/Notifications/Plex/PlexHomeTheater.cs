@@ -25,11 +25,11 @@ namespace NzbDrone.Core.Notifications.Plex
             get { return "https://plex.tv/"; }
         }
 
-        public override void OnGrab(string message)
+        public override void OnGrab(GrabMessage grabMessage)
         {
             const string header = "Sonarr - Grabbed";
 
-            Notify(Settings, header, message);
+            Notify(Settings, header, grabMessage.Message);
         }
 
         public override void OnDownload(DownloadMessage message)
@@ -80,7 +80,7 @@ namespace NzbDrone.Core.Notifications.Plex
             }
             catch (SocketException ex)
             {
-                var logMessage = String.Format("Unable to connect to PHT Host: {0}:{1}", Settings.Host, Settings.Port);
+                var logMessage = string.Format("Unable to connect to PHT Host: {0}:{1}", Settings.Host, Settings.Port);
                 _logger.DebugException(logMessage, ex);
             }
         }

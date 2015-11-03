@@ -14,54 +14,54 @@ namespace NzbDrone.Core.Indexers.Fanzub
         private static readonly Regex RemoveCharactersRegex = new Regex(@"[!?`]", RegexOptions.Compiled);
 
         public FanzubSettings Settings { get; set; }
-        public Int32 PageSize { get; set; }
+        public int PageSize { get; set; }
 
         public FanzubRequestGenerator()
         {
             PageSize = 100;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetRecentRequests()
+        public virtual IndexerPageableRequestChain GetRecentRequests()
         {
-            var pageableRequests = new List<IEnumerable<IndexerRequest>>();
+            var pageableRequests = new IndexerPageableRequestChain();
 
-            pageableRequests.AddIfNotNull(GetPagedRequests(null));
+            pageableRequests.Add(GetPagedRequests(null));
 
             return pageableRequests;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SeasonSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SeasonSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(DailyEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(DailyEpisodeSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(AnimeEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(AnimeEpisodeSearchCriteria searchCriteria)
         {
-            var pageableRequests = new List<IEnumerable<IndexerRequest>>();
+            var pageableRequests = new IndexerPageableRequestChain();
 
             var searchTitles = searchCriteria.QueryTitles.SelectMany(v => GetTitleSearchStrings(v, searchCriteria.AbsoluteEpisodeNumber)).ToList();
 
-            pageableRequests.Add(GetPagedRequests(String.Join("|", searchTitles)));
+            pageableRequests.Add(GetPagedRequests(string.Join("|", searchTitles)));
 
             return pageableRequests;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SpecialEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SpecialEpisodeSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        private IEnumerable<IndexerRequest> GetPagedRequests(String query)
+        private IEnumerable<IndexerRequest> GetPagedRequests(string query)
         {
             var url = new StringBuilder();
             url.AppendFormat("{0}?cat=anime&max={1}", Settings.BaseUrl, PageSize);
@@ -74,14 +74,14 @@ namespace NzbDrone.Core.Indexers.Fanzub
             yield return new IndexerRequest(url.ToString(), HttpAccept.Rss);
         }
 
-        private IEnumerable<String> GetTitleSearchStrings(string title, int absoluteEpisodeNumber)
+        private IEnumerable<string> GetTitleSearchStrings(string title, int absoluteEpisodeNumber)
         {
             var formats = new[] { "{0}%20{1:00}", "{0}%20-%20{1:00}" };
 
-            return formats.Select(s => "\"" + String.Format(s, CleanTitle(title), absoluteEpisodeNumber) + "\"");
+            return formats.Select(s => "\"" + string.Format(s, CleanTitle(title), absoluteEpisodeNumber) + "\"");
         }
 
-        private String CleanTitle(String title)
+        private string CleanTitle(string title)
         {
             return RemoveCharactersRegex.Replace(title, "");
         }

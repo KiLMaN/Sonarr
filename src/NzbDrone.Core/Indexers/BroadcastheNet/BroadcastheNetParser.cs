@@ -32,7 +32,13 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
                     break;
             }
 
-            var jsonResponse = new HttpResponse<JsonRpcResponse<BroadcastheNetTorrents>>(indexerResponse.HttpResponse).Resource;
+            if (indexerResponse.Content == "Query execution was interrupted")
+            {
+                throw new IndexerException(indexerResponse, "Indexer API returned an internal server error");
+            }
+
+
+            JsonRpcResponse<BroadcastheNetTorrents> jsonResponse = new HttpResponse<JsonRpcResponse<BroadcastheNetTorrents>>(indexerResponse.HttpResponse).Resource;
 
             if (jsonResponse.Error != null || jsonResponse.Result == null)
             {
@@ -56,6 +62,10 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
                 torrentInfo.DownloadUrl = RegexProtocol.Replace(torrent.DownloadURL, protocol);
                 torrentInfo.InfoUrl = string.Format("{0}//broadcasthe.net/torrents.php?id={1}&torrentid={2}", protocol, torrent.GroupID, torrent.TorrentID);
                 //torrentInfo.CommentUrl =
+                if (torrent.TvdbID.HasValue)
+                {
+                    torrentInfo.TvdbId = torrent.TvdbID.Value;
+                }
                 if (torrent.TvrageID.HasValue)
                 {
                     torrentInfo.TvRageId = torrent.TvrageID.Value;

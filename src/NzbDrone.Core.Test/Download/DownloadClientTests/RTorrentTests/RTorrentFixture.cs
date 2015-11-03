@@ -50,19 +50,24 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.RTorrentTests
                     };
 
             Mocker.GetMock<ITorrentFileInfoReader>()
-                  .Setup(s => s.GetHashFromTorrentFile(It.IsAny<Byte[]>()))
+                  .Setup(s => s.GetHashFromTorrentFile(It.IsAny<byte[]>()))
                   .Returns("CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951");
         }
 
         protected void GivenSuccessfulDownload()
         {
             Mocker.GetMock<IRTorrentProxy>()
-                .Setup(s => s.AddTorrentFromUrl(It.IsAny<String>(), It.IsAny<RTorrentSettings>()))
-                .Callback(PrepareClientToReturnCompletedItem);
+                  .Setup(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<RTorrentSettings>()))
+                  .Callback(PrepareClientToReturnCompletedItem);
 
             Mocker.GetMock<IRTorrentProxy>()
-                .Setup(s => s.AddTorrentFromFile(It.IsAny<String>(), It.IsAny<Byte[]>(), It.IsAny<RTorrentSettings>()))
-                .Callback(PrepareClientToReturnCompletedItem);
+                  .Setup(s => s.AddTorrentFromFile(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<RTorrentSettings>()))
+                  .Callback(PrepareClientToReturnCompletedItem);
+
+
+            Mocker.GetMock<IRTorrentProxy>()
+                  .Setup(s => s.HasHashTorrent(It.IsAny<string>(), It.IsAny<RTorrentSettings>()))
+                  .Returns(true);
         }
 
         protected virtual void GivenTorrents(List<RTorrentTorrent> torrents)

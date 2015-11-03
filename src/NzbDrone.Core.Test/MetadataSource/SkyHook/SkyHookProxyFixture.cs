@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.SkyHook;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
-using NzbDrone.Test.Common;
 using NzbDrone.Test.Common.Categories;
 
 namespace NzbDrone.Core.Test.MetadataSource.SkyHook
@@ -38,9 +38,7 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
         [Test]
         public void getting_details_of_invalid_series()
         {
-            Assert.Throws<Common.Http.HttpException>(() => Subject.GetSeriesInfo(Int32.MaxValue));
-
-            ExceptionVerification.ExpectedWarns(1);
+            Assert.Throws<SeriesNotFoundException>(() => Subject.GetSeriesInfo(int.MaxValue));
         }
 
         [Test]
@@ -78,14 +76,14 @@ namespace NzbDrone.Core.Test.MetadataSource.SkyHook
             episodeGroup.Should().OnlyContain(c => c.Count() == 1);
 
             episodes.Should().Contain(c => c.SeasonNumber > 0);
-            episodes.Should().Contain(c => !String.IsNullOrWhiteSpace(c.Overview));
+            episodes.Should().Contain(c => !string.IsNullOrWhiteSpace(c.Overview));
 
             foreach (var episode in episodes)
             {
                 ValidateEpisode(episode);
 
                 //if atleast one episdoe has title it means parse it working.
-                episodes.Should().Contain(c => !String.IsNullOrWhiteSpace(c.Title));
+                episodes.Should().Contain(c => !string.IsNullOrWhiteSpace(c.Title));
             }
         }
 

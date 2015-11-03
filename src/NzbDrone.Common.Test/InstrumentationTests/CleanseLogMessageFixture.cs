@@ -13,6 +13,7 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         [TestCase(@"http://rss.torrentleech.org/mySecret")]
         [TestCase(@"http://www.bitmetv.org/rss.php?uid=mySecret&passkey=mySecret")]
         [TestCase(@"https://rss.omgwtfnzbs.org/rss-search.php?catid=19,20&user=sonarr&api=mySecret&eng=1")]
+        [TestCase(@"https://dognzb.cr/fetch/2b51db35e1912ffc138825a12b9933d2/2b51db35e1910123321025a12b9933d2")]
         // NzbGet
         [TestCase(@"{ ""Name"" : ""ControlUsername"", ""Value"" : ""mySecret"" }, { ""Name"" : ""ControlPassword"", ""Value"" : ""mySecret"" }, ")]
         [TestCase(@"{ ""Name"" : ""Server1.Username"", ""Value"" : ""mySecret"" }, { ""Name"" : ""Server1.Password"", ""Value"" : ""mySecret"" }, ")]
@@ -39,11 +40,12 @@ namespace NzbDrone.Common.Test.InstrumentationTests
         // BroadcastheNet
         [TestCase(@"method: ""getTorrents"", ""params"": [ ""mySecret"",")]
         [TestCase(@"""DownloadURL"":""https:\/\/broadcasthe.net\/torrents.php?action=download&id=123&authkey=mySecret&torrent_pass=mySecret""")]
-        public void should_clean_message(String message)
+        public void should_clean_message(string message)
         {
             var cleansedMessage = CleanseLogMessage.Cleanse(message);
 
             cleansedMessage.Should().NotContain("mySecret");
+            cleansedMessage.Should().NotContain("01233210");
         }
     }
 }

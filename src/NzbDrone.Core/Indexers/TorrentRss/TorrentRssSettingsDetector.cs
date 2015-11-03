@@ -41,7 +41,7 @@ namespace NzbDrone.Core.Indexers.TorrentRss
             _logger.Debug("Evaluating TorrentRss feed '{0}'", indexerSettings.BaseUrl);
 
             var requestGenerator = new TorrentRssIndexerRequestGenerator { Settings = indexerSettings };
-            var request = requestGenerator.GetRecentRequests().First().First();
+            var request = requestGenerator.GetRecentRequests().GetAllTiers().First().First();
 
             HttpResponse httpResponse = null;
             try
@@ -186,7 +186,7 @@ namespace NzbDrone.Core.Indexers.TorrentRss
             return settings;
         }
 
-        private Boolean IsEZTVFeed(IndexerResponse response)
+        private bool IsEZTVFeed(IndexerResponse response)
         {
             using (var xmlTextReader = XmlReader.Create(new StringReader(response.Content), new XmlReaderSettings { DtdProcessing = DtdProcessing.Parse, ValidationType = ValidationType.None, IgnoreComments = true, XmlResolver = null }))
             {
@@ -209,6 +209,13 @@ namespace NzbDrone.Core.Indexers.TorrentRss
                 if (document.DocumentType != null && document.DocumentType.SystemId == "http://xmlns.ezrss.it/0.1/dtd/")
                 {
                     _logger.Trace("Identified feed as EZTV compatible by EZTV DTD");
+                    return true;
+                }
+
+                // Check namespaces
+                if (document.Descendants().Any(v => v.GetDefaultNamespace().NamespaceName == "http://xmlns.ezrss.it/0.1/"))
+                {
+                    _logger.Trace("Identified feed as EZTV compatible by EZTV Namespace");
                     return true;
                 }
 

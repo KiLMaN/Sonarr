@@ -62,7 +62,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                 if (parsedEpisodeInfo != null)
                 {
-                    trackedDownload.RemoteEpisode = _parsingService.Map(parsedEpisodeInfo);
+                    trackedDownload.RemoteEpisode = _parsingService.Map(parsedEpisodeInfo, 0, 0);
                 }
 
                 if (historyItems.Any())
@@ -78,7 +78,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                         parsedEpisodeInfo = Parser.Parser.ParseTitle(firstHistoryItem.SourceTitle);
                         if (parsedEpisodeInfo != null)
                         {
-                            trackedDownload.RemoteEpisode = _parsingService.Map(parsedEpisodeInfo, firstHistoryItem.SeriesId, historyItems.Select(h => h.EpisodeId));
+                            trackedDownload.RemoteEpisode = _parsingService.Map(parsedEpisodeInfo, firstHistoryItem.SeriesId, historyItems.Where(v => v.EventType == HistoryEventType.Grabbed).Select(h => h.EpisodeId).Distinct());
                         }
                     }
                 }

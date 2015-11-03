@@ -10,8 +10,8 @@ namespace NzbDrone.Core.Indexers.Nyaa
     {
         public NyaaSettings Settings { get; set; }
 
-        public Int32 MaxPages { get; set; }
-        public Int32 PageSize { get; set; }
+        public int MaxPages { get; set; }
+        public int PageSize { get; set; }
 
         public NyaaRequestGenerator()
         {
@@ -19,47 +19,47 @@ namespace NzbDrone.Core.Indexers.Nyaa
             PageSize = 100;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetRecentRequests()
+        public virtual IndexerPageableRequestChain GetRecentRequests()
         {
-            var pageableRequests = new List<IEnumerable<IndexerRequest>>();
+            var pageableRequests = new IndexerPageableRequestChain();
 
-            pageableRequests.AddIfNotNull(GetPagedRequests(MaxPages, null));
+            pageableRequests.Add(GetPagedRequests(MaxPages, null));
 
             return pageableRequests;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SeasonSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SeasonSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(DailyEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(DailyEpisodeSearchCriteria searchCriteria)
         {
-            return new List<IEnumerable<IndexerRequest>>();
+            return new IndexerPageableRequestChain();
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(AnimeEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(AnimeEpisodeSearchCriteria searchCriteria)
         {
-            var pageableRequests = new List<IEnumerable<IndexerRequest>>();
+            var pageableRequests = new IndexerPageableRequestChain();
 
             foreach (var queryTitle in searchCriteria.QueryTitles)
             {
                 var searchTitle = PrepareQuery(queryTitle);
 
-                pageableRequests.AddIfNotNull(GetPagedRequests(MaxPages,
-                    String.Format("&term={0}+{1:0}",
+                pageableRequests.Add(GetPagedRequests(MaxPages,
+                    string.Format("&term={0}+{1:0}",
                     searchTitle,
                     searchCriteria.AbsoluteEpisodeNumber)));
 
                 if (searchCriteria.AbsoluteEpisodeNumber < 10)
                 {
-                    pageableRequests.AddIfNotNull(GetPagedRequests(MaxPages,
-                        String.Format("&term={0}+{1:00}",
+                    pageableRequests.Add(GetPagedRequests(MaxPages,
+                        string.Format("&term={0}+{1:00}",
                         searchTitle,
                         searchCriteria.AbsoluteEpisodeNumber)));
                 }
@@ -68,38 +68,38 @@ namespace NzbDrone.Core.Indexers.Nyaa
             return pageableRequests;
         }
 
-        public virtual IList<IEnumerable<IndexerRequest>> GetSearchRequests(SpecialEpisodeSearchCriteria searchCriteria)
+        public virtual IndexerPageableRequestChain GetSearchRequests(SpecialEpisodeSearchCriteria searchCriteria)
         {
-            var pageableRequests = new List<IEnumerable<IndexerRequest>>();
+            var pageableRequests = new IndexerPageableRequestChain();
 
             foreach (var queryTitle in searchCriteria.EpisodeQueryTitles)
             {
-                pageableRequests.AddIfNotNull(GetPagedRequests(MaxPages,
-                    String.Format("&term={0}",
+                pageableRequests.Add(GetPagedRequests(MaxPages,
+                    string.Format("&term={0}",
                     PrepareQuery(queryTitle))));
             }
 
             return pageableRequests;
         }
 
-        private IEnumerable<IndexerRequest> GetPagedRequests(Int32 maxPages, String searchParameters)
+        private IEnumerable<IndexerRequest> GetPagedRequests(int maxPages, string searchParameters)
         {
-            var baseUrl = String.Format("{0}/?page=rss{1}", Settings.BaseUrl.TrimEnd('/'), Settings.AdditionalParameters);
+            var baseUrl = string.Format("{0}/?page=rss{1}", Settings.BaseUrl.TrimEnd('/'), Settings.AdditionalParameters);
 
             if (PageSize == 0)
             {
-                yield return new IndexerRequest(String.Format("{0}{1}", baseUrl, searchParameters), HttpAccept.Rss);
+                yield return new IndexerRequest(string.Format("{0}{1}", baseUrl, searchParameters), HttpAccept.Rss);
             }
             else
             {
                 for (var page = 0; page < maxPages; page++)
                 {
-                    yield return new IndexerRequest(String.Format("{0}&offset={1}{2}", baseUrl, page + 1, searchParameters), HttpAccept.Rss);
+                    yield return new IndexerRequest(string.Format("{0}&offset={1}{2}", baseUrl, page + 1, searchParameters), HttpAccept.Rss);
                 }
             }
         }
 
-        private String PrepareQuery(String query)
+        private string PrepareQuery(string query)
         {
             return query.Replace(' ', '+');
         }

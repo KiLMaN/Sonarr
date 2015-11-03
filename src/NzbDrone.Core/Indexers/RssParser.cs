@@ -19,14 +19,16 @@ namespace NzbDrone.Core.Indexers
         protected readonly Logger _logger;
 
         // Use the 'guid' element content as InfoUrl.
-        public Boolean UseGuidInfoUrl { get; set; }
+        public bool UseGuidInfoUrl { get; set; }
 
         // Use the enclosure as download url and/or length.
-        public Boolean UseEnclosureUrl { get; set; }
-        public Boolean UseEnclosureLength { get; set; }
+        public bool UseEnclosureUrl { get; set; }
+        public bool UseEnclosureLength { get; set; }
 
         // Parse "Size: 1.3 GB" or "1.3 GB" parts in the description element and use that as Size.
-        public Boolean ParseSizeInDescription { get; set; }
+        public bool ParseSizeInDescription { get; set; }
+
+        private IndexerResponse _indexerResponse;
 
         public RssParser()
         {
@@ -35,6 +37,8 @@ namespace NzbDrone.Core.Indexers
 
         public virtual IList<ReleaseInfo> ParseResponse(IndexerResponse indexerResponse)
         {
+            _indexerResponse = indexerResponse;
+
             var releases = new List<ReleaseInfo>();
 
             if (!PreProcess(indexerResponse))
@@ -89,7 +93,7 @@ namespace NzbDrone.Core.Indexers
             return new ReleaseInfo();
         }
 
-        protected virtual Boolean PreProcess(IndexerResponse indexerResponse)
+        protected virtual bool PreProcess(IndexerResponse indexerResponse)
         {
             if (indexerResponse.HttpResponse.StatusCode != System.Net.HttpStatusCode.OK)
             {
@@ -142,12 +146,12 @@ namespace NzbDrone.Core.Indexers
             return releaseInfo;
         }
 
-        protected virtual String GetGuid(XElement item)
+        protected virtual string GetGuid(XElement item)
         {
             return item.TryGetValue("guid", Guid.NewGuid().ToString());
         }
 
-        protected virtual String GetTitle(XElement item)
+        protected virtual string GetTitle(XElement item)
         {
             return item.TryGetValue("title", "Unknown");
         }
@@ -168,25 +172,25 @@ namespace NzbDrone.Core.Indexers
         {
             if (UseEnclosureUrl)
             {
-                return item.Element("enclosure").Attribute("url").Value;
+                return ParseUrl((string)item.Element("enclosure").Attribute("url"));
             }
 
-            return item.Element("link").Value;
+            return ParseUrl((string)item.Element("link"));
         }
 
         protected virtual string GetInfoUrl(XElement item)
         {
             if (UseGuidInfoUrl)
             {
-                return (String)item.Element("guid");
+                return ParseUrl((string)item.Element("guid"));
             }
 
-            return String.Empty;
+            return null;
         }
 
         protected virtual string GetCommentUrl(XElement item)
         {
-            return (String)item.Element("comments");
+            return ParseUrl((string)item.Element("comments"));
         }
 
         protected virtual long GetSize(XElement item)
@@ -234,21 +238,46 @@ namespace NzbDrone.Core.Indexers
             return channel.Elements("item");
         }
 
+        protected virtual string ParseUrl(string value)
+        {
+            if (value.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            try
+            {
+                var uri = new Uri(value, UriKind.RelativeOrAbsolute);
+
+                if (!uri.IsAbsoluteUri)
+                {
+                    uri = new Uri(_indexerResponse.HttpRequest.Url, uri);
+                }
+
+                return uri.AbsoluteUri;
+            }
+            catch (Exception ex)
+            {
+                _logger.DebugException(string.Format("Failed to parse Uri {0}, ignoring.", value), ex);
+                return null;
+            }
+        }
+
         private static readonly Regex ParseSizeRegex = new Regex(@"(?<value>(?:\d+,)*\d+(?:\.\d{1,2})?)\W?(?<unit>[KMG]i?B)(?![\w/])",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        public static Int64 ParseSize(String sizeString, Boolean defaultToBinaryPrefix)
+        public static long ParseSize(string sizeString, bool defaultToBinaryPrefix)
         {
             if (sizeString.All(char.IsDigit))
             {
-                return Int64.Parse(sizeString);
+                return long.Parse(sizeString);
             }
 
             var match = ParseSizeRegex.Matches(sizeString);
 
             if (match.Count != 0)
             {
-                var value = Decimal.Parse(Regex.Replace(match[0].Groups["value"].Value, "\\,", ""), CultureInfo.InvariantCulture);
+                var value = decimal.Parse(Regex.Replace(match[0].Groups["value"].Value, "\\,", ""), CultureInfo.InvariantCulture);
 
                 var unit = match[0].Groups["unit"].Value.ToLower();
 
@@ -267,13 +296,13 @@ namespace NzbDrone.Core.Indexers
                     case "gib":
                         return ConvertToBytes(Convert.ToDouble(value), 3, true);
                     default:
-                        return (Int64)value;
+                        return (long)value;
                 }
             }
             return 0;
         }
 
-        private static Int64 ConvertToBytes(Double value, Int32 power, Boolean binaryPrefix)
+        private static long ConvertToBytes(double value, int power, bool binaryPrefix)
         {
             var prefix = binaryPrefix ? 1024 : 1000;
             var multiplier = Math.Pow(prefix, power);

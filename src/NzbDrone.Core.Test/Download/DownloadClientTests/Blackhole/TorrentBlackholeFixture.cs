@@ -9,7 +9,9 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients.TorrentBlackhole;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
@@ -17,9 +19,9 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
     [TestFixture]
     public class TorrentBlackholeFixture : DownloadClientFixtureBase<TorrentBlackhole>
     {
-        protected String _completedDownloadFolder;
-        protected String _blackholeFolder;
-        protected String _filePath;
+        protected string _completedDownloadFolder;
+        protected string _blackholeFolder;
+        protected string _filePath;
 
         [SetUp]
         public void Setup()
@@ -63,8 +65,23 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
                 .Returns(new[] { Path.Combine(_completedDownloadFolder, "somefile.mkv") });
 
             Mocker.GetMock<IDiskProvider>()
-                .Setup(c => c.GetFileSize(It.IsAny<String>()))
+                .Setup(c => c.GetFileSize(It.IsAny<string>()))
                 .Returns(1000000);
+        }
+
+        protected override RemoteEpisode CreateRemoteEpisode()
+        {
+            var remoteEpisode = base.CreateRemoteEpisode();
+            var torrentInfo = new TorrentInfo();
+
+            torrentInfo.Title = remoteEpisode.Release.Title;
+            torrentInfo.DownloadUrl = remoteEpisode.Release.DownloadUrl;
+            torrentInfo.DownloadProtocol = remoteEpisode.Release.DownloadProtocol;
+            torrentInfo.MagnetUrl = "magnet:?xt=urn:btih:755248817d32b00cc853e633ecdc48e4c21bff15&dn=Series.S05E10.PROPER.HDTV.x264-DEFiNE%5Brartv%5D&tr=http%3A%2F%2Ftracker.trackerfix.com%3A80%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2710&tr=udp%3A%2F%2F9.rarbg.to%3A2710";
+
+            remoteEpisode.Release = torrentInfo;
+
+            return remoteEpisode;
         }
 
         [Test]
@@ -114,6 +131,15 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
             Mocker.GetMock<IHttpClient>().Verify(c => c.Get(It.Is<HttpRequest>(v => v.Url.ToString() == _downloadUrl)), Times.Once());
             Mocker.GetMock<IDiskProvider>().Verify(c => c.OpenWriteStream(expectedFilename), Times.Once());
             Mocker.GetMock<IHttpClient>().Verify(c => c.DownloadFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void Download_should_throw_if_magnet_and_torrent_url_does_not_exist()
+        {
+            var remoteEpisode = CreateRemoteEpisode();
+            remoteEpisode.Release.DownloadUrl = null;
+
+            Assert.Throws<ReleaseDownloadException>(() => Subject.Download(remoteEpisode));
         }
 
         [Test]
@@ -195,6 +221,14 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
             result.IsLocalhost.Should().BeTrue();
             result.OutputRootFolders.Should().NotBeNull();
             result.OutputRootFolders.First().Should().Be(_completedDownloadFolder);
+        }
+
+        [Test]
+        public void should_return_null_hash()
+        {
+            var remoteEpisode = CreateRemoteEpisode();
+
+            Subject.Download(remoteEpisode).Should().BeNull();
         }
     }
 }

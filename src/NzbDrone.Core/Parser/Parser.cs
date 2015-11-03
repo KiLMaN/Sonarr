@@ -46,6 +46,10 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?\d+?)[-_. ]+(?:[-_. ]?(?<absoluteepisode>\d{3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])?(?:$|\.mkv)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+                //Anime - [SubGroup] Title - Absolute Episode Number
+                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:[. ]-[. ](?<absoluteepisode>\d{2,3}(?!\d+|[-])))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])?(?:$|\.mkv)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
                 //Anime - [SubGroup] Title Absolute Episode Number
                 new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+(?:[-_. ]?(?<absoluteepisode>\d{2,3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])?(?:$|\.mkv)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -55,7 +59,7 @@ namespace NzbDrone.Core.Parser
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Anime - Title Absolute Episode Number [Hash]
-                new Regex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{2,3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])(?:$|\.)",
+                new Regex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{2,3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?[-_. ]+.*?(?<hash>\[\w{8}\])(?:$|\.)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Episodes with airdate AND season/episode number
@@ -68,10 +72,6 @@ namespace NzbDrone.Core.Parser
 
                 //Episodes with a title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc) **
                 new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
-
-                //Supports 103/113 naming
-                new Regex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)[1-9])(?<episode>[1-9][0-9]|[0][1-9])(?![a-z]|\d+))+",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Mini-Series, treated as season 1, episodes are labelled as Part01, Part 01, Part.1
@@ -98,8 +98,16 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:[-_. ]{1,3}ep){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))+",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
-                //Supports Season only releases
+                //Season only releases
                 new Regex(@"^(?<title>.+?)\W(?:S|Season)\W?(?<season>\d{1,2}(?!\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //4 digit season only releases
+                new Regex(@"^(?<title>.+?)\W(?:S|Season)\W?(?<season>\d{4}(?!\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Supports 103/113 naming
+                new Regex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)[1-9])(?<episode>[1-9][0-9]|[0][1-9])(?![a-z]|\d+))+",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Episodes with airdate
@@ -184,7 +192,7 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex FileExtensionRegex = new Regex(@"\.[a-z0-9]{2,4}$",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex SimpleTitleRegex = new Regex(@"(?:480[ip]|720[ip]|1080[ip]|[xh][\W_]?264|DD\W?5\W1|[<>?*:|]|848x480|1280x720|1920x1080|(8|10)b(it)?)\s*",
+        private static readonly Regex SimpleTitleRegex = new Regex(@"(?:480[ip]|720[ip]|1080[ip]|[xh][\W_]?26[45]|DD\W?5\W1|[<>?*:|]|848x480|1280x720|1920x1080|(8|10)b(it)?)\s*",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex WebsitePrefixRegex = new Regex(@"^\[\s*[a-z]+(\.[a-z]+)+\s*\][- ]*",
@@ -198,6 +206,9 @@ namespace NzbDrone.Core.Parser
 
         private static readonly Regex CleanReleaseGroupRegex = new Regex(@"^(.*?[-._ ](S\d+E\d+)[-._ ])|-(RP|1|NZBGeek|sample)$",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex CleanTorrentSuffixRegex = new Regex(@"\[(?:ettv|rartv|rarbg|cttv)\]$",
+                                                                   RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex ReleaseGroupRegex = new Regex(@"-(?<releasegroup>[a-z0-9]+)\b(?<!WEB-DL|480p|720p|1080p)",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -259,15 +270,19 @@ namespace NzbDrone.Core.Parser
                     var titleWithoutExtension = RemoveFileExtension(title).ToCharArray();
                     Array.Reverse(titleWithoutExtension);
 
-                    title = new String(titleWithoutExtension) + title.Substring(titleWithoutExtension.Length);
+                    title = new string(titleWithoutExtension) + title.Substring(titleWithoutExtension.Length);
 
                     Logger.Debug("Reversed name detected. Converted to '{0}'", title);
                 }
 
-                var simpleTitle = SimpleTitleRegex.Replace(title, String.Empty);
+                var simpleTitle = SimpleTitleRegex.Replace(title, string.Empty);
+
+                simpleTitle = RemoveFileExtension(simpleTitle);
 
                 // TODO: Quick fix stripping [url] - prefixes.
-                simpleTitle = WebsitePrefixRegex.Replace(simpleTitle, String.Empty);
+                simpleTitle = WebsitePrefixRegex.Replace(simpleTitle, string.Empty);
+
+                simpleTitle = CleanTorrentSuffixRegex.Replace(simpleTitle, string.Empty);
 
                 var airDateMatch = AirDateRegex.Match(simpleTitle);
                 if (airDateMatch.Success)
@@ -278,7 +293,7 @@ namespace NzbDrone.Core.Parser
                 var sixDigitAirDateMatch = SixDigitAirDateRegex.Match(simpleTitle);
                 if (sixDigitAirDateMatch.Success)
                 {
-                    var fixedDate = String.Format("20{0}.{1}.{2}", sixDigitAirDateMatch.Groups["airyear"].Value,
+                    var fixedDate = string.Format("20{0}.{1}.{2}", sixDigitAirDateMatch.Groups["airyear"].Value,
                                                                    sixDigitAirDateMatch.Groups["airmonth"].Value,
                                                                    sixDigitAirDateMatch.Groups["airday"].Value);
 
@@ -366,15 +381,15 @@ namespace NzbDrone.Core.Parser
             long number = 0;
 
             //If Title only contains numbers return it as is.
-            if (Int64.TryParse(title, out number))
+            if (long.TryParse(title, out number))
                 return title;
 
-            return NormalizeRegex.Replace(title, String.Empty).ToLower().RemoveAccent();
+            return NormalizeRegex.Replace(title, string.Empty).ToLower().RemoveAccent();
         }
 
         public static string NormalizeEpisodeTitle(string title)
         {
-            title = SpecialEpisodeWordRegex.Replace(title, String.Empty);
+            title = SpecialEpisodeWordRegex.Replace(title, string.Empty);
             title = PunctuationRegex.Replace(title, " ");
             title = DuplicateSpacesRegex.Replace(title, " ");
 
@@ -385,8 +400,8 @@ namespace NzbDrone.Core.Parser
         public static string NormalizeTitle(string title)
         {
             title = WordDelimiterRegex.Replace(title, " ");
-            title = PunctuationRegex.Replace(title, String.Empty);
-            title = CommonWordRegex.Replace(title, String.Empty);
+            title = PunctuationRegex.Replace(title, string.Empty);
+            title = CommonWordRegex.Replace(title, string.Empty);
             title = DuplicateSpacesRegex.Replace(title, " ");
 
             return title.Trim().ToLower();
@@ -414,7 +429,7 @@ namespace NzbDrone.Core.Parser
                 var group = matches.OfType<Match>().Last().Groups["releasegroup"].Value;
                 int groupIsNumeric;
 
-                if (Int32.TryParse(group, out groupIsNumeric))
+                if (int.TryParse(group, out groupIsNumeric))
                 {
                     return null;
                 }
@@ -432,7 +447,7 @@ namespace NzbDrone.Core.Parser
                     var extension = m.Value.ToLower();
                     if (MediaFiles.MediaFileExtensions.Extensions.Contains(extension) || new[] { ".par2", ".nzb" }.Contains(extension))
                     {
-                        return String.Empty;
+                        return string.Empty;
                     }
                     return m.Value;
                 });
@@ -457,9 +472,9 @@ namespace NzbDrone.Core.Parser
             if (lowerTitle.Contains("danish"))
                 return Language.Danish;
 
-            if (lowerTitle.Contains("dutch"))
+	   /*if (lowerTitle.Contains("dutch"))
                 return Language.Dutch;
-
+*/
             if (lowerTitle.Contains("japanese"))
                 return Language.Japanese;
 
@@ -499,6 +514,9 @@ namespace NzbDrone.Core.Parser
             if (lowerTitle.Contains("portuguese"))
                 return Language.Portuguese;
 
+            if (lowerTitle.Contains("hungarian"))
+                return Language.Hungarian;
+                
             var match = LanguageRegex.Match(title);
 
             if (match.Groups["italian"].Captures.Cast<Capture>().Any())
@@ -521,6 +539,9 @@ namespace NzbDrone.Core.Parser
 
             if (match.Groups["dutch"].Success)
                 return Language.Dutch;
+
+            if (match.Groups["hungarian"].Success)
+                return Language.Hungarian;
 
             return Language.English;
         }
@@ -552,7 +573,7 @@ namespace NzbDrone.Core.Parser
             seriesName = RequestInfoRegex.Replace(seriesName, "").Trim(' ');
 
             int airYear;
-            Int32.TryParse(matchCollection[0].Groups["airyear"].Value, out airYear);
+            int.TryParse(matchCollection[0].Groups["airyear"].Value, out airYear);
 
             ParsedEpisodeInfo result;
 
@@ -563,7 +584,7 @@ namespace NzbDrone.Core.Parser
                 foreach (Capture seasonCapture in matchCollection[0].Groups["season"].Captures)
                 {
                     int parsedSeason;
-                    if (Int32.TryParse(seasonCapture.Value, out parsedSeason))
+                    if (int.TryParse(seasonCapture.Value, out parsedSeason))
                         seasons.Add(parsedSeason);
                 }
 
@@ -688,7 +709,7 @@ namespace NzbDrone.Core.Parser
                 return false;
             }
 
-            if (!title.Any(Char.IsLetterOrDigit))
+            if (!title.Any(char.IsLetterOrDigit))
             {
                 return false;
             }
@@ -713,7 +734,7 @@ namespace NzbDrone.Core.Parser
                 return subGroup.Value;
             }
 
-            return String.Empty;
+            return string.Empty;
         }
 
         private static string GetReleaseHash(MatchCollection matchCollection)
@@ -726,13 +747,13 @@ namespace NzbDrone.Core.Parser
 
                 if (hashValue.Equals("1280x720"))
                 {
-                    return String.Empty;
+                    return string.Empty;
                 }
 
                 return hashValue;
             }
 
-            return String.Empty;
+            return string.Empty;
         }
     }
 }

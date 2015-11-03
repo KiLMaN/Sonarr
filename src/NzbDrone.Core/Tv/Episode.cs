@@ -24,22 +24,22 @@ namespace NzbDrone.Core.Tv
         public string AirDate { get; set; }
         public DateTime? AirDateUtc { get; set; }
         public string Overview { get; set; }
-        public Boolean Monitored { get; set; }
-        public Nullable<Int32> AbsoluteEpisodeNumber { get; set; }
-        public Nullable<Int32> SceneAbsoluteEpisodeNumber { get; set; }
-        public Nullable<Int32> SceneSeasonNumber { get; set; }
-        public Nullable<Int32> SceneEpisodeNumber { get; set; }
+        public bool Monitored { get; set; }
+        public int? AbsoluteEpisodeNumber { get; set; }
+        public int? SceneAbsoluteEpisodeNumber { get; set; }
+        public int? SceneSeasonNumber { get; set; }
+        public int? SceneEpisodeNumber { get; set; }
         public bool UnverifiedSceneNumbering { get; set; }
         public Ratings Ratings { get; set; }
         public List<MediaCover.MediaCover> Images { get; set; }
 
-        public String SeriesTitle { get; private set; }
+        public string SeriesTitle { get; private set; }
 
         public LazyLoaded<EpisodeFile> EpisodeFile { get; set; }
 
         public Series Series { get; set; }
 
-        public Boolean HasFile
+        public bool HasFile
         {
             get { return EpisodeFileId > 0; }
         }

@@ -270,7 +270,9 @@
     <Compile Include="Datastore\Migration\089_add_on_rename_to_notifcations.cs" />
     <Compile Include="Datastore\Migration\090_update_kickass_url.cs" />
     <Compile Include="Datastore\Migration\091_added_indexerstatus.cs" />
+    <Compile Include="Datastore\Migration\093_naming_config_replace_characters.cs" />
     <Compile Include="Datastore\Migration\092_add_unverifiedscenenumbering.cs" />
+    <Compile Include="Datastore\Migration\094_add_tvmazeid.cs" />
     <Compile Include="Datastore\Migration\Framework\MigrationContext.cs" />
     <Compile Include="Datastore\Migration\Framework\MigrationController.cs" />
     <Compile Include="Datastore\Migration\Framework\MigrationDbFactory.cs" />
@@ -431,6 +433,7 @@
     <Compile Include="Exceptions\BadRequestException.cs" />
     <Compile Include="Exceptions\DownstreamException.cs" />
     <Compile Include="Exceptions\NzbDroneClientException.cs" />
+    <Compile Include="Exceptions\SeriesNotFoundException.cs" />
     <Compile Include="Exceptions\ReleaseDownloadException.cs" />
     <Compile Include="Exceptions\StatusCodeToExceptions.cs" />
     <Compile Include="Fluent.cs" />
@@ -470,6 +473,7 @@
     <Compile Include="Housekeeping\HousekeepingCommand.cs" />
     <Compile Include="Housekeeping\HousekeepingService.cs" />
     <Compile Include="Housekeeping\IHousekeepingTask.cs" />
+    <Compile Include="Http\TorcacheHttpInterceptor.cs" />
     <Compile Include="Indexers\BitMeTv\BitMeTv.cs" />
     <Compile Include="Indexers\BitMeTv\BitMeTvSettings.cs" />
     <Compile Include="Indexers\BitMeTv\BitMeTvRequestGenerator.cs" />
@@ -500,6 +504,8 @@
     <Compile Include="Indexers\IndexerBase.cs" />
     <Compile Include="Indexers\IndexerDefinition.cs" />
     <Compile Include="Indexers\IndexerFactory.cs" />
+    <Compile Include="Indexers\IndexerPageableRequest.cs" />
+    <Compile Include="Indexers\IndexerPageableRequestChain.cs" />
     <Compile Include="Indexers\IndexerStatusRepository.cs" />
     <Compile Include="Indexers\IndexerRepository.cs" />
     <Compile Include="Indexers\IndexerRequest.cs" />
@@ -516,6 +522,8 @@
     <Compile Include="Indexers\KickassTorrents\KickassTorrentsSettings.cs" />
     <Compile Include="Indexers\KickassTorrents\KickassTorrentsRequestGenerator.cs" />
     <Compile Include="Indexers\Newznab\Newznab.cs" />
+    <Compile Include="Indexers\Newznab\NewznabCapabilities.cs" />
+    <Compile Include="Indexers\Newznab\NewznabCapabilitiesProvider.cs" />
     <Compile Include="Indexers\Newznab\NewznabException.cs" />
     <Compile Include="Indexers\Newznab\NewznabRequestGenerator.cs" />
     <Compile Include="Indexers\Newznab\NewznabRssParser.cs" />
@@ -555,11 +563,8 @@
     <Compile Include="Indexers\TorrentRss\TorrentRssParserFactory.cs" />
     <Compile Include="Indexers\TorrentRss\TorrentRssSettingsDetector.cs" />
     <Compile Include="Indexers\TorrentRssParser.cs" />
-    <Compile Include="Indexers\Torznab\TorznabCapabilities.cs" />
-    <Compile Include="Indexers\Torznab\TorznabCapabilitiesProvider.cs" />
     <Compile Include="Indexers\Torznab\Torznab.cs" />
     <Compile Include="Indexers\Torznab\TorznabException.cs" />
-    <Compile Include="Indexers\Torznab\TorznabRequestGenerator.cs" />
     <Compile Include="Indexers\Torznab\TorznabRssParser.cs" />
     <Compile Include="Indexers\Torznab\TorznabSettings.cs" />
     <Compile Include="Indexers\Wombles\Wombles.cs" />
@@ -727,6 +732,7 @@
     <Compile Include="Notifications\Boxcar\BoxcarException.cs" />
     <Compile Include="Notifications\Boxcar\BoxcarProxy.cs" />
     <Compile Include="Notifications\Boxcar\BoxcarSettings.cs" />
+    <Compile Include="Notifications\GrabMessage.cs" />
     <Compile Include="Notifications\Plex\Models\PlexIdentity.cs" />
     <Compile Include="Notifications\Plex\Models\PlexPreferences.cs" />
     <Compile Include="Notifications\Plex\Models\PlexSectionItem.cs" />
@@ -744,6 +750,14 @@
     <Compile Include="Notifications\Synology\SynologyIndexerProxy.cs" />
     <Compile Include="Notifications\Synology\SynologyIndexerSettings.cs" />
     <Compile Include="Notifications\Twitter\TwitterException.cs" />
+    <Compile Include="Notifications\Webhook\WebhookEpisode.cs" />
+    <Compile Include="Notifications\Webhook\WebhookException.cs" />
+    <Compile Include="Notifications\Webhook\WebhookMethod.cs" />
+    <Compile Include="Notifications\Webhook\WebhookPayload.cs" />
+    <Compile Include="Notifications\Webhook\WebhookSeries.cs" />
+    <Compile Include="Notifications\Webhook\WebhookService.cs" />
+    <Compile Include="Notifications\Webhook\WebhookSettings.cs" />
+    <Compile Include="Notifications\Webhook\Webhook.cs" />
     <Compile Include="Organizer\NamingConfigRepository.cs" />
     <Compile Include="Notifications\Twitter\Twitter.cs" />
     <Compile Include="Notifications\Twitter\TwitterService.cs" />
@@ -990,6 +1004,7 @@
     <Compile Include="Validation\Paths\SeriesExistsValidator.cs" />
     <Compile Include="Validation\Paths\SeriesPathValidator.cs" />
     <Compile Include="Validation\RuleBuilderExtensions.cs" />
+    <Compile Include="Validation\UrlValidator.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

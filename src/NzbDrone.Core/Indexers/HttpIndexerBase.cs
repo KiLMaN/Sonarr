@@ -19,7 +19,7 @@ namespace NzbDrone.Core.Indexers
     public abstract class HttpIndexerBase<TSettings> : IndexerBase<TSettings>
         where TSettings : IProviderConfig, new()
     {
-        protected const Int32 MaxNumResultsPerQuery = 1000;
+        protected const int MaxNumResultsPerQuery = 1000;
 
         private readonly IHttpClient _httpClient;
 
@@ -27,7 +27,7 @@ namespace NzbDrone.Core.Indexers
         public override bool SupportsSearch { get { return true; } }
         public bool SupportsPaging { get { return PageSize > 0; } }
 
-        public virtual Int32 PageSize { get { return 0; } }
+        public virtual int PageSize { get { return 0; } }
         public virtual TimeSpan RateLimit { get { return TimeSpan.FromSeconds(2); } }
 
         public abstract IIndexerRequestGenerator GetRequestGenerator();
@@ -111,10 +111,10 @@ namespace NzbDrone.Core.Indexers
             return FetchReleases(generator.GetSearchRequests(searchCriteria));
         }
 
-        protected virtual IList<ReleaseInfo> FetchReleases(IList<IEnumerable<IndexerRequest>> pageableRequests, bool isRecent = false)
+        protected virtual IList<ReleaseInfo> FetchReleases(IndexerPageableRequestChain pageableRequestChain, bool isRecent = false)
         {
             var releases = new List<ReleaseInfo>();
-            var url = String.Empty;
+            var url = string.Empty;
 
             var parser = GetParser();
 
@@ -127,51 +127,61 @@ namespace NzbDrone.Core.Indexers
                     lastReleaseInfo = _indexerStatusService.GetLastRssSyncReleaseInfo(Definition.Id);
                 }
 
-                foreach (var pageableRequest in pageableRequests)
+                for (int i = 0; i < pageableRequestChain.Tiers; i++)
                 {
-                    var pagedReleases = new List<ReleaseInfo>();
+                    var pageableRequests = pageableRequestChain.GetTier(i);
 
-                    foreach (var request in pageableRequest)
+                    foreach (var pageableRequest in pageableRequests)
                     {
-                        url = request.Url.ToString();
+                        var pagedReleases = new List<ReleaseInfo>();
 
-                        var page = FetchPage(request, parser);
-
-                        pagedReleases.AddRange(page);
-
-                        if (isRecent && page.Any())
+                        foreach (var request in pageableRequest)
                         {
-                            if (lastReleaseInfo == null)
+                            url = request.Url.ToString();
+
+                            var page = FetchPage(request, parser);
+
+                            pagedReleases.AddRange(page);
+
+                            if (isRecent && page.Any())
                             {
-                                fullyUpdated = true;
-                                break;
+                                if (lastReleaseInfo == null)
+                                {
+                                    fullyUpdated = true;
+                                    break;
+                                }
+                                var oldestReleaseDate = page.Select(v => v.PublishDate).Min();
+                                if (oldestReleaseDate < lastReleaseInfo.PublishDate || page.Any(v => v.DownloadUrl == lastReleaseInfo.DownloadUrl))
+                                {
+                                    fullyUpdated = true;
+                                    break;
+                                }
+
+                                if (pagedReleases.Count >= MaxNumResultsPerQuery &&
+                                    oldestReleaseDate < DateTime.UtcNow - TimeSpan.FromHours(24))
+                                {
+                                    fullyUpdated = false;
+                                    break;
+                                }
                             }
-                            var oldestReleaseDate = page.Select(v => v.PublishDate).Min();
-                            if (oldestReleaseDate < lastReleaseInfo.PublishDate || page.Any(v => v.DownloadUrl == lastReleaseInfo.DownloadUrl))
+                            else if (pagedReleases.Count >= MaxNumResultsPerQuery)
                             {
-                                fullyUpdated = true;
                                 break;
                             }
 
-                            if (pagedReleases.Count >= MaxNumResultsPerQuery &&
-                                oldestReleaseDate < DateTime.UtcNow - TimeSpan.FromHours(24))
+                            if (!IsFullPage(page))
                             {
-                                fullyUpdated = false;
                                 break;
                             }
                         }
-                        else if (pagedReleases.Count >= MaxNumResultsPerQuery)
-                        {
-                            break;
-                        }
 
-                        if (!IsFullPage(page))
-                        {
-                            break;
-                        }
+                        releases.AddRange(pagedReleases);
                     }
 
-                    releases.AddRange(pagedReleases);
+                    if (releases.Any())
+                    {
+                        break;
+                    }
                 }
 
                 if (isRecent && !releases.Empty())
@@ -181,7 +191,7 @@ namespace NzbDrone.Core.Indexers
                     if (!fullyUpdated && lastReleaseInfo != null)
                     {
                         var gapStart = lastReleaseInfo.PublishDate;
-                        var gapEnd = ordered.Last();
+                        var gapEnd = ordered.Last().PublishDate;
                         _logger.Warn("Indexer {0} rss sync didn't cover the period between {1} and {2} UTC. Search may be required.", Definition.Name, gapStart, gapEnd);
                     }
                     lastReleaseInfo = ordered.First();
@@ -229,7 +239,7 @@ namespace NzbDrone.Core.Indexers
             catch (IndexerException ex)
             {
                 _indexerStatusService.RecordFailure(Definition.Id);
-                var message = String.Format("{0} - {1}", ex.Message, url);
+                var message = string.Format("{0} - {1}", ex.Message, url);
                 _logger.WarnException(message, ex);
             }
             catch (Exception feedEx)
@@ -242,7 +252,7 @@ namespace NzbDrone.Core.Indexers
             return CleanupReleases(releases);
         }
 
-        protected virtual Boolean IsFullPage(IList<ReleaseInfo> page)
+        protected virtual bool IsFullPage(IList<ReleaseInfo> page)
         {
             return PageSize != 0 && page.Count >= PageSize;
         }
@@ -277,7 +287,7 @@ namespace NzbDrone.Core.Indexers
             {
                 var parser = GetParser();
                 var generator = GetRequestGenerator();
-                var releases = FetchPage(generator.GetRecentRequests().First().First(), parser);
+                var releases = FetchPage(generator.GetRecentRequests().GetAllTiers().First().First(), parser);
 
                 if (releases.Empty())
                 {
@@ -296,13 +306,19 @@ namespace NzbDrone.Core.Indexers
             }
             catch (UnsupportedFeedException ex)
             {
-                _logger.WarnException("Indexer feed is not supported: " + ex.Message, ex);
+                _logger.WarnException("Indexer feed is not supported", ex);
 
                 return new ValidationFailure(string.Empty, "Indexer feed is not supported: " + ex.Message);
             }
+            catch (IndexerException ex)
+            {
+                _logger.WarnException("Unable to connect to indexer", ex);
+
+                return new ValidationFailure(string.Empty, "Unable to connect to indexer. " + ex.Message);
+            }
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to connect to indexer: " + ex.Message, ex);
+                _logger.WarnException("Unable to connect to indexer", ex);
 
                 return new ValidationFailure(string.Empty, "Unable to connect to indexer, check the log for more details");
             }
