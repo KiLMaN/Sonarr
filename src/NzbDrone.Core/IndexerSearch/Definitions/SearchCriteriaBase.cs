@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -18,14 +17,9 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public List<string> SceneTitles { get; set; }
         public List<Episode> Episodes { get; set; }
         public virtual bool MonitoredEpisodesOnly { get; set; }
+        public virtual bool UserInvokedSearch { get; set; }
 
-        public List<string> QueryTitles
-        {
-            get
-            {
-                return SceneTitles.Select(GetQueryTitle).ToList();
-            }
-        }
+        public List<string> QueryTitles => SceneTitles.Select(GetQueryTitle).ToList();
 
         public static string GetQueryTitle(string title)
         {

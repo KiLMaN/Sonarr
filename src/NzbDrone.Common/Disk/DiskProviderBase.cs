@@ -9,13 +9,25 @@ using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
-using NzbDrone.Common.Instrumentation.Extensions;
 
 namespace NzbDrone.Common.Disk
 {
     public abstract class DiskProviderBase : IDiskProvider
     {
         private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(DiskProviderBase));
+
+        public static StringComparison PathStringComparison
+        {
+            get
+            {
+                if (OsInfo.IsWindows)
+                {
+                    return StringComparison.OrdinalIgnoreCase;
+                }
+
+                return StringComparison.Ordinal;
+            }
+        }
 
         public abstract long? GetAvailableSpace(string path);
         public abstract void InheritFolderPermissions(string filename);
@@ -87,7 +99,7 @@ namespace NzbDrone.Common.Disk
         public bool FileExists(string path)
         {
             Ensure.That(path, () => path).IsValidPath();
-            return FileExists(path, OsInfo.PathStringComparison);
+            return FileExists(path, PathStringComparison);
         }
 
         public bool FileExists(string path, StringComparison stringComparison)
@@ -96,16 +108,16 @@ namespace NzbDrone.Common.Disk
 
             switch (stringComparison)
             {
-                    case StringComparison.CurrentCulture:
-                    case StringComparison.InvariantCulture:
-                    case StringComparison.Ordinal:
-                {
-                     return File.Exists(path) && path == path.GetActualCasing();
-                }
+                case StringComparison.CurrentCulture:
+                case StringComparison.InvariantCulture:
+                case StringComparison.Ordinal:
+                    {
+                        return File.Exists(path) && path == path.GetActualCasing();
+                    }
                 default:
-                {
-                     return File.Exists(path);
-                }
+                    {
+                        return File.Exists(path);
+                    }
             }
         }
 
@@ -116,7 +128,7 @@ namespace NzbDrone.Common.Disk
             try
             {
                 var testPath = Path.Combine(path, "sonarr_write_test.txt");
-                var testContent = string.Format("This file was created to verify if '{0}' is writable. It should've been automatically deleted. Feel free to delete it.", path);
+                var testContent = $"This file was created to verify if '{path}' is writable. It should've been automatically deleted. Feel free to delete it.";
                 File.WriteAllText(testPath, testContent);
                 File.Delete(testPath);
                 return true;
@@ -295,18 +307,30 @@ namespace NzbDrone.Common.Disk
                 var sid = new SecurityIdentifier(accountSid, null);
 
                 var directoryInfo = new DirectoryInfo(filename);
-                var directorySecurity = directoryInfo.GetAccessControl();
+                var directorySecurity = directoryInfo.GetAccessControl(AccessControlSections.Access);
+
+                var rules = directorySecurity.GetAccessRules(true, false, typeof(SecurityIdentifier));
+
+                if (rules.OfType<FileSystemAccessRule>().Any(acl => acl.AccessControlType == controlType && (acl.FileSystemRights & rights) == rights && acl.IdentityReference.Equals(sid)))
+                {
+                    return;
+                }
 
                 var accessRule = new FileSystemAccessRule(sid, rights,
                                                           InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                                          PropagationFlags.None, controlType);
+                                                          PropagationFlags.InheritOnly, controlType);
 
-                directorySecurity.AddAccessRule(accessRule);
-                directoryInfo.SetAccessControl(directorySecurity);
+                bool modified;
+                directorySecurity.ModifyAccessRule(AccessControlModification.Add, accessRule, out modified);
+
+                if (modified)
+                {
+                    directoryInfo.SetAccessControl(directorySecurity);
+                }
             }
             catch (Exception e)
             {
-                Logger.WarnException(string.Format("Couldn't set permission for {0}. account:{1} rights:{2} accessControlType:{3}", filename, accountSid, rights, controlType), e);
+                Logger.Warn(e, "Couldn't set permission for {0}. account:{1} rights:{2} accessControlType:{3}", filename, accountSid, rights, controlType);
                 throw;
             }
 
@@ -348,12 +372,12 @@ namespace NzbDrone.Common.Disk
 
         public string[] GetFixedDrives()
         {
-            return (DriveInfo.GetDrives().Where(x => x.DriveType == DriveType.Fixed).Select(x => x.Name)).ToArray();
+            return GetMounts().Where(x => x.DriveType == DriveType.Fixed).Select(x => x.RootDirectory).ToArray();
         }
 
         public string GetVolumeLabel(string path)
         {
-            var driveInfo = DriveInfo.GetDrives().SingleOrDefault(d => d.Name == path);
+            var driveInfo = GetMounts().SingleOrDefault(d => d.RootDirectory.PathEquals(path));
 
             if (driveInfo == null)
             {
@@ -378,10 +402,35 @@ namespace NzbDrone.Common.Disk
             return new FileStream(path, FileMode.Create);
         }
 
-        public List<DriveInfo> GetDrives()
+        public virtual List<IMount> GetMounts()
+        {
+            return GetDriveInfoMounts().Where(d => d.DriveType == DriveType.Fixed || d.DriveType == DriveType.Network || d.DriveType == DriveType.Removable)
+                                       .Select(d => new DriveInfoMount(d))
+                                       .Cast<IMount>()
+                                       .ToList();
+        }
+
+        public virtual IMount GetMount(string path)
+        {
+            try
+            {
+                var mounts = GetMounts();
+
+                return mounts.Where(drive => drive.RootDirectory.PathEquals(path) ||
+                                             drive.RootDirectory.IsParentPath(path))
+                          .OrderByDescending(drive => drive.RootDirectory.Length)
+                          .FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug(ex, string.Format("Failed to get mount for path {0}", path));
+                return null;
+            }
+        }
+
+        protected List<DriveInfo> GetDriveInfoMounts()
         {
             return DriveInfo.GetDrives()
-                            .Where(d => d.DriveType == DriveType.Fixed || d.DriveType == DriveType.Network)
                             .Where(d => d.IsReady)
                             .ToList();
         }
@@ -402,6 +451,20 @@ namespace NzbDrone.Common.Disk
             var di = new DirectoryInfo(path);
 
             return di.GetFiles().ToList();
+        }
+
+        public void RemoveEmptySubfolders(string path)
+        {
+            var subfolders = GetDirectories(path);
+            var files = GetFiles(path, SearchOption.AllDirectories);
+
+            foreach (var subfolder in subfolders)
+            {
+                if (files.None(f => subfolder.IsParentPath(f)))
+                {
+                    DeleteFolder(subfolder, false);
+                }
+            }
         }
     }
 }

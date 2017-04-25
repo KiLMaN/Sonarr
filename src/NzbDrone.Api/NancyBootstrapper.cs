@@ -1,9 +1,7 @@
-﻿using System;
-using NLog;
-using Nancy;
+﻿using System.Linq;
 using Nancy.Bootstrapper;
 using Nancy.Diagnostics;
-using NzbDrone.Api.ErrorManagement;
+using NLog;
 using NzbDrone.Api.Extensions.Pipelines;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Instrumentation;
@@ -26,9 +24,9 @@ namespace NzbDrone.Api
 
         protected override void ApplicationStartup(TinyIoCContainer container, IPipelines pipelines)
         {
-            Logger.Info("Starting NzbDrone API");
+            Logger.Info("Starting Web Server");
 
-            if (RuntimeInfoBase.IsProduction)
+            if (RuntimeInfo.IsProduction)
             {
                 DiagnosticsHook.Disable(pipelines);
             }
@@ -37,13 +35,11 @@ namespace NzbDrone.Api
 
             container.Resolve<DatabaseTarget>().Register();
             container.Resolve<IEventAggregator>().PublishEvent(new ApplicationStartedEvent());
-
-            ApplicationPipelines.OnError.AddItemToEndOfPipeline((Func<NancyContext, Exception, Response>) container.Resolve<NzbDroneErrorPipeline>().HandleException);
         }
 
         private void RegisterPipelines(IPipelines pipelines)
         {
-            var pipelineRegistrars = _tinyIoCContainer.ResolveAll<IRegisterNancyPipeline>();
+            var pipelineRegistrars = _tinyIoCContainer.ResolveAll<IRegisterNancyPipeline>().OrderBy(v => v.Order).ToList();
 
             foreach (var registerNancyPipeline in pipelineRegistrars)
             {
@@ -56,17 +52,8 @@ namespace NzbDrone.Api
             return _tinyIoCContainer;
         }
 
-        protected override DiagnosticsConfiguration DiagnosticsConfiguration
-        {
-            get { return new DiagnosticsConfiguration { Password = @"password" }; }
-        }
+        protected override DiagnosticsConfiguration DiagnosticsConfiguration => new DiagnosticsConfiguration { Password = @"password" };
 
-        protected override byte[] FavIcon
-        {
-            get
-            {
-                return null;
-            }
-        }
+        protected override byte[] FavIcon => null;
     }
 }

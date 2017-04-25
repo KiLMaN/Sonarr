@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using NzbDrone.Common.Extensions;
@@ -17,7 +16,7 @@ namespace NzbDrone.Core.Indexers
 
         public TorrentRssParser()
         {
-
+            PreferredEnclosureMimeType = "application/x-bittorrent";
         }
 
         public IEnumerable<XElement> GetItems(IndexerResponse indexerResponse)

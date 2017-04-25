@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using NzbDrone.Common.Extensions;
+﻿using System.Collections.Generic;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.IndexerSearch.Definitions;
 
@@ -48,7 +46,10 @@ namespace NzbDrone.Core.Indexers.BitMeTv
         {
             var request = new IndexerRequest(string.Format("{0}/rss.php?uid={1}&passkey={2}", Settings.BaseUrl.Trim().TrimEnd('/'), Settings.UserId, Settings.RssPasskey), HttpAccept.Html);
 
-            request.HttpRequest.AddCookie(Settings.Cookie);
+            foreach (var cookie in HttpHeader.ParseCookies(Settings.Cookie))
+            {
+                request.HttpRequest.Cookies[cookie.Key] = cookie.Value;
+            }
 
             yield return request;
         }

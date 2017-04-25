@@ -90,7 +90,7 @@ module.exports = Marionette.ItemView.extend({
 
                 element.find('.chart').tooltip({
                     title     : 'Episode is downloading - {0}% {1}'.format(progress.toFixed(1), releaseTitle),
-                    container : '.fc-content-skeleton'
+                    container : '.fc'
                 });
             }
         }
@@ -160,7 +160,8 @@ module.exports = Marionette.ItemView.extend({
                 allDay      : false,
                 statusLevel : self._getStatusLevel(model, end),
                 downloading : QueueCollection.findEpisode(model.get('id')),
-                model       : model
+                model       : model,
+                sortOrder   : (model.get('seasonNumber') === 0 ? 1000000 : model.get('seasonNumber') * 10000) + model.get('episodeNumber')
             };
 
             events.push(event);
@@ -271,7 +272,7 @@ module.exports = Marionette.ItemView.extend({
         element.find('.fc-time').after('<span class="status pull-right"><i class="{0}"></i></span>'.format(icon));
         element.find('.status').tooltip({
             title     : tooltip,
-            container : '.fc-content-skeleton'
+            container : '.fc'
         });
     },
 

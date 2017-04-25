@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
@@ -84,8 +83,8 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
             _videoFiles = videoFiles.ToList();
 
             Mocker.GetMock<IMediaFileService>()
-                .Setup(c => c.FilterExistingFiles(_videoFiles, It.IsAny<Series>()))
-                .Returns(_videoFiles);
+                  .Setup(c => c.FilterExistingFiles(_videoFiles, It.IsAny<Series>()))
+                  .Returns(_videoFiles);
         }
 
         [Test]
@@ -180,7 +179,7 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
         }
 
         [Test]
-        public void should_use_file_quality_if_folder_quality_is_lower_than_file_quality()
+        public void should_use_file_quality_if_file_quality_was_determined_by_name()
         {
             GivenSpecifications(_pass1, _pass2, _pass3);
             var expectedQuality = QualityParser.ParseQuality(_videoFiles.Single());
@@ -191,10 +190,32 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
         }
 
         [Test]
-        public void should_use_folder_quality_when_it_is_greater_than_file_quality()
+        public void should_use_folder_quality_when_file_quality_was_determined_by_the_extension()
         {
             GivenSpecifications(_pass1, _pass2, _pass3);
-            var expectedQuality = new QualityModel(Quality.Bluray1080p);
+            GivenVideoFiles(new string[] { @"C:\Test\Unsorted\The.Office.S03E115.mkv".AsOsAgnostic() });
+
+            _localEpisode.Path = _videoFiles.Single();
+            _localEpisode.Quality.QualitySource = QualitySource.Extension;
+            _localEpisode.Quality.Quality = Quality.HDTV720p;
+
+            var expectedQuality = new QualityModel(Quality.SDTV);
+
+            var result = Subject.GetImportDecisions(_videoFiles, _series, new ParsedEpisodeInfo { Quality = expectedQuality }, true);
+
+            result.Single().LocalEpisode.Quality.Should().Be(expectedQuality);
+        }
+
+        [Test]
+        public void should_use_folder_quality_when_greater_than_file_quality()
+        {
+            GivenSpecifications(_pass1, _pass2, _pass3);
+            GivenVideoFiles(new string[] { @"C:\Test\Unsorted\The.Office.S03E115.mkv".AsOsAgnostic() });
+
+            _localEpisode.Path = _videoFiles.Single();
+            _localEpisode.Quality.Quality = Quality.HDTV720p;
+
+            var expectedQuality = new QualityModel(Quality.Bluray720p);
 
             var result = Subject.GetImportDecisions(_videoFiles, _series, new ParsedEpisodeInfo { Quality = expectedQuality }, true);
 
@@ -310,7 +331,7 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
             GivenVideoFiles(videoFiles.ToList());
 
             Mocker.GetMock<IDetectSample>()
-                  .Setup(s => s.IsSample(_series, It.IsAny<QualityModel>(), It.Is<string>(c => c.Contains("sample")), It.IsAny<long>(), It.IsAny<int>()))
+                  .Setup(s => s.IsSample(_series, It.IsAny<QualityModel>(), It.Is<string>(c => c.Contains("sample")), It.IsAny<long>(), It.IsAny<bool>()))
                   .Returns(true);
 
             var folderInfo = Parser.Parser.ParseTitle("Series.Title.S01E01");
@@ -362,6 +383,25 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
             var result = Subject.GetImportDecisions(_videoFiles, _series, new ParsedEpisodeInfo { Quality = folderQuality}, true);
 
             result.Single().LocalEpisode.Quality.Should().Be(_quality);
+        }
+
+        [Test]
+        public void should_return_a_decision_when_exception_is_caught()
+        {
+            Mocker.GetMock<IParsingService>()
+                  .Setup(c => c.GetLocalEpisode(It.IsAny<string>(), It.IsAny<Series>(), It.IsAny<ParsedEpisodeInfo>(), It.IsAny<bool>()))
+                  .Throws<TestException>();
+
+            _videoFiles = new List<string>
+                {
+                    "The.Office.S03E115.DVDRip.XviD-OSiTV"
+                };
+
+            GivenVideoFiles(_videoFiles);
+
+            Subject.GetImportDecisions(_videoFiles, _series).Should().HaveCount(1);
+
+            ExceptionVerification.ExpectedErrors(1);
         }
     }
 }

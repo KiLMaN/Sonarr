@@ -10,7 +10,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 {
     public interface IDetectSample
     {
-        bool IsSample(Series series, QualityModel quality, string path, long size, int seasonNumber);
+        bool IsSample(Series series, QualityModel quality, string path, long size, bool isSpecial);
     }
 
     public class DetectSample : IDetectSample
@@ -26,17 +26,11 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             _logger = logger;
         }
 
-        public static long SampleSizeLimit
-        {
-            get
-            {
-                return 70.Megabytes();
-            }
-        }
+        public static long SampleSizeLimit => 70.Megabytes();
 
-        public bool IsSample(Series series, QualityModel quality, string path, long size, int seasonNumber)
+        public bool IsSample(Series series, QualityModel quality, string path, long size, bool isSpecial)
         {
-            if (seasonNumber == 0)
+            if (isSpecial)
             {
                 _logger.Debug("Special, skipping sample check");
                 return false;
@@ -87,7 +81,6 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
         private bool CheckSize(long size, QualityModel quality)
         {
-            if (_largeSampleSizeQualities.Contains(quality.Quality))
             {
                 if (size < SampleSizeLimit * 2)
                 {
@@ -107,9 +100,14 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
         private int GetMinimumAllowedRuntime(Series series)
         {
-            return 0;
+            //Anime short - 15 seconds
+            if (series.Runtime <= 3)
+            {
+                return 15;
+            }
+
             //Webisodes - 90 seconds
-            if (series.Runtime <= 5)
+            if (series.Runtime <= 10)
             {
                 return 90;
             }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
@@ -7,9 +6,7 @@ using Nancy.Responses;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Organizer;
 using Nancy.ModelBinding;
-using NzbDrone.Api.Mapping;
 using NzbDrone.Api.Extensions;
-using Omu.ValueInjecter;
 
 namespace NzbDrone.Api.Config
 {
@@ -46,7 +43,7 @@ namespace NzbDrone.Api.Config
 
         private void UpdateNamingConfig(NamingConfigResource resource)
         {
-            var nameSpec = resource.InjectTo<NamingConfig>();
+            var nameSpec = resource.ToModel();
             ValidateFormatResult(nameSpec);
 
             _namingConfigService.Save(nameSpec);
@@ -55,15 +52,13 @@ namespace NzbDrone.Api.Config
         private NamingConfigResource GetNamingConfig()
         {
             var nameSpec = _namingConfigService.GetConfig();
-            var resource = nameSpec.InjectTo<NamingConfigResource>();
+            var resource = nameSpec.ToResource();
 
-            if (string.IsNullOrWhiteSpace(resource.StandardEpisodeFormat))
+            if (resource.StandardEpisodeFormat.IsNotNullOrWhiteSpace())
             {
-                return resource;
+                var basicConfig = _filenameBuilder.GetBasicNamingConfig(nameSpec);
+                basicConfig.AddToResource(resource);
             }
-
-            var basicConfig = _filenameBuilder.GetBasicNamingConfig(nameSpec);
-            resource.InjectFrom(basicConfig);
 
             return resource;
         }
@@ -75,7 +70,7 @@ namespace NzbDrone.Api.Config
 
         private JsonResponse<NamingSampleResource> GetExamples(NamingConfigResource config)
         {
-            var nameSpec = config.InjectTo<NamingConfig>();
+            var nameSpec = config.ToModel();
             var sampleResource = new NamingSampleResource();
             
             var singleEpisodeSampleResult = _filenameSampleService.GetStandardSample(nameSpec);

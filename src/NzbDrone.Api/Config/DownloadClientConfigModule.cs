@@ -1,5 +1,4 @@
-﻿using System;
-using FluentValidation;
+﻿using FluentValidation;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Validation.Paths;
 
@@ -20,6 +19,11 @@ namespace NzbDrone.Api.Config
                            .SetValidator(mappedNetworkDriveValidator)
                            .SetValidator(pathExistsValidator)
                            .When(c => !string.IsNullOrWhiteSpace(c.DownloadedEpisodesFolder));
+        }
+
+        protected override DownloadClientConfigResource ToResource(IConfigService model)
+        {
+            return DownloadClientConfigResourceMapper.ToResource(model);
         }
     }
 }

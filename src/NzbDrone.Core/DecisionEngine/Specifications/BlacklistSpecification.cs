@@ -1,6 +1,5 @@
 using NLog;
 using NzbDrone.Core.Blacklisting;
-using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
 
@@ -17,10 +16,11 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             _logger = logger;
         }
 
-        public RejectionType Type { get { return RejectionType.Permanent; } }
+        public SpecificationPriority Priority => SpecificationPriority.Database;
+        public RejectionType Type => RejectionType.Permanent;
 
         public Decision IsSatisfiedBy(RemoteEpisode subject, SearchCriteriaBase searchCriteria)
-        {          
+        {
             if (_blacklistService.Blacklisted(subject.Series.Id, subject.Release))
             {
                 _logger.Debug("{0} is blacklisted, rejecting.", subject.Release.Title);

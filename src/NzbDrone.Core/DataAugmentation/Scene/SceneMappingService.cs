@@ -3,7 +3,6 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
@@ -14,14 +13,16 @@ namespace NzbDrone.Core.DataAugmentation.Scene
 {
     public interface ISceneMappingService
     {
-        List<string> GetSceneNames(int tvdbId, IEnumerable<int> seasonNumbers);
+        List<string> GetSceneNames(int tvdbId, List<int> seasonNumbers, List<int> sceneSeasonNumbers);
         int? FindTvdbId(string title);
         List<SceneMapping> FindByTvdbId(int tvdbId);
-        int? GetSeasonNumber(string title);
+        SceneMapping FindSceneMapping(string title);
+        int? GetSceneSeasonNumber(string title);
+        int? GetTvdbSeasonNumber(string title);
+        int? GetSceneSeasonNumber(int tvdbId, int seasonNumber);
     }
 
     public class SceneMappingService : ISceneMappingService,
-                                       IHandleAsync<ApplicationStartedEvent>,
                                        IHandle<SeriesRefreshStartingEvent>,
                                        IExecute<UpdateSceneMappingCommand>
     {
@@ -29,8 +30,8 @@ namespace NzbDrone.Core.DataAugmentation.Scene
         private readonly IEnumerable<ISceneMappingProvider> _sceneMappingProviders;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
-        private readonly ICached<List<SceneMapping>> _getTvdbIdCache;
-        private readonly ICached<List<SceneMapping>> _findByTvdbIdCache;
+        private readonly ICachedDictionary<List<SceneMapping>> _getTvdbIdCache;
+        private readonly ICachedDictionary<List<SceneMapping>> _findByTvdbIdCache;
 
         public SceneMappingService(ISceneMappingRepository repository,
                                    ICacheManager cacheManager,
@@ -41,24 +42,27 @@ namespace NzbDrone.Core.DataAugmentation.Scene
             _repository = repository;
             _sceneMappingProviders = sceneMappingProviders;
             _eventAggregator = eventAggregator;
-
-            _getTvdbIdCache = cacheManager.GetCache<List<SceneMapping>>(GetType(), "tvdb_id");
-            _findByTvdbIdCache = cacheManager.GetCache<List<SceneMapping>>(GetType(), "find_tvdb_id");
             _logger = logger;
+
+            _getTvdbIdCache = cacheManager.GetCacheDictionary<List<SceneMapping>>(GetType(), "tvdb_id");
+            _findByTvdbIdCache = cacheManager.GetCacheDictionary<List<SceneMapping>>(GetType(), "find_tvdb_id");
         }
 
-        public List<string> GetSceneNames(int tvdbId, IEnumerable<int> seasonNumbers)
+        public List<string> GetSceneNames(int tvdbId, List<int> seasonNumbers, List<int> sceneSeasonNumbers)
         {
-            var names = _findByTvdbIdCache.Find(tvdbId.ToString());
+            var mappings = FindByTvdbId(tvdbId);
 
-            if (names == null)
+            if (mappings == null)
             {
                 return new List<string>();
             }
 
-            return FilterNonEnglish(names.Where(s => seasonNumbers.Contains(s.SeasonNumber) ||
-                                                     s.SeasonNumber == -1)
-                                         .Select(m => m.SearchTerm).Distinct().ToList());
+            var names = mappings.Where(n => n.SeasonNumber.HasValue && seasonNumbers.Contains(n.SeasonNumber.Value) ||
+                                            n.SceneSeasonNumber.HasValue && sceneSeasonNumbers.Contains(n.SceneSeasonNumber.Value) ||
+                                            (n.SeasonNumber ?? -1) == -1 && (n.SceneSeasonNumber ?? -1) == -1)
+                                .Select(n => n.SearchTerm).Distinct().ToList();
+
+            return FilterNonEnglish(names);
         }
 
         public int? FindTvdbId(string title)
@@ -88,14 +92,52 @@ namespace NzbDrone.Core.DataAugmentation.Scene
             return mappings;
         }
 
-        public int? GetSeasonNumber(string title)
+        public SceneMapping FindSceneMapping(string title)
+        {
+            return FindMapping(title);
+        }
+
+        public int? GetSceneSeasonNumber(string title)
         {
             var mapping = FindMapping(title);
 
             if (mapping == null)
+            {
                 return null;
+            }
+
+            return mapping.SceneSeasonNumber;
+        }
+
+        public int? GetTvdbSeasonNumber(string title)
+        {
+            var mapping = FindMapping(title);
+
+            if (mapping == null)
+            {
+                return null;
+            }
 
             return mapping.SeasonNumber;
+        }
+
+        public int? GetSceneSeasonNumber(int tvdbId, int seasonNumber)
+        {
+            var mappings = FindByTvdbId(tvdbId);
+
+            if (mappings == null)
+            {
+                return null;
+            }
+
+            var mapping = mappings.FirstOrDefault(e => e.SeasonNumber == seasonNumber && e.SceneSeasonNumber.HasValue);
+
+            if (mapping == null)
+            {
+                return null;
+            }
+
+            return mapping.SceneSeasonNumber;
         }
 
         private void UpdateMappings()
@@ -139,11 +181,12 @@ namespace NzbDrone.Core.DataAugmentation.Scene
                 }
                 catch (Exception ex)
                 {
-                    _logger.ErrorException("Failed to Update Scene Mappings:", ex);
+                    _logger.Error(ex, "Failed to Update Scene Mappings.");
                 }
             }
             
             RefreshCache();
+
             _eventAggregator.PublishEvent(new SceneMappingsUpdatedEvent());
         }
 
@@ -185,18 +228,8 @@ namespace NzbDrone.Core.DataAugmentation.Scene
         {
             var mappings = _repository.All().ToList();
 
-            _getTvdbIdCache.Clear();
-            _findByTvdbIdCache.Clear();
-
-            foreach (var sceneMapping in mappings.GroupBy(v => v.ParseTerm))
-            {
-                _getTvdbIdCache.Set(sceneMapping.Key, sceneMapping.ToList());
-            }
-
-            foreach (var sceneMapping in mappings.GroupBy(x => x.TvdbId))
-            {
-                _findByTvdbIdCache.Set(sceneMapping.Key.ToString(), sceneMapping.ToList());
-            }
+            _getTvdbIdCache.Update(mappings.GroupBy(v => v.ParseTerm).ToDictionary(v => v.Key, v => v.ToList()));
+            _findByTvdbIdCache.Update(mappings.GroupBy(v => v.TvdbId).ToDictionary(v => v.Key.ToString(), v => v.ToList()));
         }
 
         private List<string> FilterNonEnglish(List<string> titles)
@@ -204,14 +237,12 @@ namespace NzbDrone.Core.DataAugmentation.Scene
             return titles.Where(title => title.All(c => c <= 255)).ToList();
         }
 
-        public void HandleAsync(ApplicationStartedEvent message)
-        {
-            UpdateMappings();
-        }
-
         public void Handle(SeriesRefreshStartingEvent message)
         {
-            UpdateMappings();
+            if (message.ManualTrigger && _findByTvdbIdCache.IsExpired(TimeSpan.FromMinutes(1)))
+            {
+                UpdateMappings();
+            }
         }
 
         public void Execute(UpdateSceneMappingCommand message)

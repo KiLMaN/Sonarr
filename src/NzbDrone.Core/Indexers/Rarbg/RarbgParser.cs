@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Net;
 using System.Text.RegularExpressions;
-using Newtonsoft.Json.Linq;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Indexers.Exceptions;
 using NzbDrone.Core.Parser.Model;
@@ -54,7 +52,7 @@ namespace NzbDrone.Core.Indexers.Rarbg
                 torrentInfo.Size = torrent.size;
                 torrentInfo.DownloadUrl = torrent.download;
                 torrentInfo.InfoUrl = torrent.info_page;
-                torrentInfo.PublishDate = torrent.pubdate;
+                torrentInfo.PublishDate = torrent.pubdate.ToUniversalTime();
                 torrentInfo.Seeders = torrent.seeders;
                 torrentInfo.Peers = torrent.leechers + torrent.seeders;
 

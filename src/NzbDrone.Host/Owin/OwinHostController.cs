@@ -1,7 +1,6 @@
 using System;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
-using NzbDrone.Common.Security;
 using NzbDrone.Host.AccessControl;
 
 namespace NzbDrone.Host.Owin
@@ -34,8 +33,6 @@ namespace NzbDrone.Host.Owin
 
         public void StartServer()
         {
-            X509CertificateValidationPolicy.Register();
-
             if (OsInfo.IsWindows)
             {
                 if (_runtimeInfo.IsAdmin)

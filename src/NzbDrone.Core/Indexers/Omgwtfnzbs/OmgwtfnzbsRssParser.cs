@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using NzbDrone.Common.Extensions;
@@ -17,7 +16,7 @@ namespace NzbDrone.Core.Indexers.Omgwtfnzbs
 
         protected override bool PreProcess(IndexerResponse indexerResponse)
         {
-            var xdoc = XDocument.Parse(indexerResponse.Content);
+            var xdoc = LoadXmlDocument(indexerResponse);
             var notice = xdoc.Descendants("notice").FirstOrDefault();
 
             if (notice == null) return true;

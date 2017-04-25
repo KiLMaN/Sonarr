@@ -30,23 +30,23 @@ namespace NzbDrone.Update
         {
             try
             {
-                var startupArgument = new StartupContext(args);
-                NzbDroneLogger.Register(startupArgument, true, true);
+                SecurityProtocolPolicy.Register();
+                X509CertificateValidationPolicy.Register();
+
+                var startupContext = new StartupContext(args);
+                NzbDroneLogger.Register(startupContext, true, true);
 
                 Logger.Info("Starting Sonarr Update Client");
 
-                X509CertificateValidationPolicy.Register();
+                _container = UpdateContainerBuilder.Build(startupContext);
 
-                _container = UpdateContainerBuilder.Build(startupArgument);
-
-                Logger.Info("Updating Sonarr to version {0}", BuildInfo.Version);
                 _container.Resolve<UpdateApp>().Start(args);
 
                 Logger.Info("Update completed successfully");
             }
             catch (Exception e)
             {
-                Logger.FatalException("An error has occurred while applying update package.", e);
+                Logger.Fatal(e, "An error has occurred while applying update package.");
             }
         }
 
@@ -55,7 +55,6 @@ namespace NzbDrone.Update
             var startupContext = ParseArgs(args);
             var targetFolder = GetInstallationDirectory(startupContext);
 
-            Logger.Info("Starting update process. Target Path:{0}", targetFolder);
             _installUpdateService.Start(targetFolder, startupContext.ProcessId);
         }
 
@@ -63,7 +62,7 @@ namespace NzbDrone.Update
         {
             if (args == null || !args.Any())
             {
-                throw new ArgumentOutOfRangeException("args", "args must be specified");
+                throw new ArgumentOutOfRangeException(nameof(args), "args must be specified");
             }
 
             var startupContext = new UpdateStartupContext
@@ -102,7 +101,7 @@ namespace NzbDrone.Update
             int id;
             if (!int.TryParse(arg, out id) || id <= 0)
             {
-                throw new ArgumentOutOfRangeException("arg", "Invalid process ID");
+                throw new ArgumentOutOfRangeException(nameof(arg), "Invalid process ID");
             }
 
             Logger.Debug("NzbDrone process ID: {0}", id);

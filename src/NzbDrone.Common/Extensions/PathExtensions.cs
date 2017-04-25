@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.EnvironmentInfo;
 
@@ -37,11 +39,16 @@ namespace NzbDrone.Common.Extensions
             return info.FullName.TrimEnd('/').Trim('\\', ' ');
         }
 
+        public static bool PathNotEquals(this string firstPath, string secondPath, StringComparison? comparison = null)
+        {
+            return !PathEquals(firstPath, secondPath, comparison);
+        }
+
         public static bool PathEquals(this string firstPath, string secondPath, StringComparison? comparison = null)
         {
             if (!comparison.HasValue)
             {
-                comparison = OsInfo.PathStringComparison;
+                comparison = DiskProviderBase.PathStringComparison;
             }
 
             if (firstPath.Equals(secondPath, comparison.Value)) return true;
@@ -73,15 +80,21 @@ namespace NzbDrone.Common.Extensions
 
         public static bool IsParentPath(this string parentPath, string childPath)
         {
-            parentPath = parentPath.TrimEnd(Path.DirectorySeparatorChar);
-            childPath = childPath.TrimEnd(Path.DirectorySeparatorChar);
+            if (parentPath != "/")
+            {
+                parentPath = parentPath.TrimEnd(Path.DirectorySeparatorChar);
+            }
+            if (childPath != "/")
+            {
+                childPath = childPath.TrimEnd(Path.DirectorySeparatorChar);
+            }
 
             var parent = new DirectoryInfo(parentPath);
             var child = new DirectoryInfo(childPath);
 
             while (child.Parent != null)
             {
-                if (child.Parent.FullName.Equals(parent.FullName, OsInfo.PathStringComparison))
+                if (child.Parent.FullName.Equals(parent.FullName, DiskProviderBase.PathStringComparison))
                 {
                     return true;
                 }
@@ -161,6 +174,21 @@ namespace NzbDrone.Common.Extensions
             }
 
             return Path.Combine(GetProperCapitalization(dirInfo), fileName);
+        }
+
+        public static List<string> GetAncestorFolders(this string path)
+        {
+            var directory = new DirectoryInfo(path);
+            var directories = new List<string>();
+
+            while (directory != null)
+            {
+                directories.Insert(0, directory.Name);
+
+                directory = directory.Parent;
+            }
+
+            return directories;
         }
 
         public static string GetAppDataPath(this IAppFolderInfo appFolderInfo)

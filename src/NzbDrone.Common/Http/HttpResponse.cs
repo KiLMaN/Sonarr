@@ -1,11 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Text.RegularExpressions;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Serializer;
 
 namespace NzbDrone.Common.Http
 {
     public class HttpResponse
     {
+        private static readonly Regex RegexSetCookie = new Regex("^(.*?)=(.*?)(?:;|$)", RegexOptions.Compiled);
+
         public HttpResponse(HttpRequest request, HttpHeader headers, byte[] binaryData, HttpStatusCode statusCode = HttpStatusCode.OK)
         {
             Request = request;
@@ -44,19 +49,33 @@ namespace NzbDrone.Common.Http
         }
 
 
-        public bool HasHttpError
+        public bool HasHttpError => (int)StatusCode >= 400;
+
+        public Dictionary<string, string> GetCookies()
         {
-            get
+            var result = new Dictionary<string, string>();
+
+            var setCookieHeaders = Headers.GetValues("Set-Cookie");
+            if (setCookieHeaders != null)
             {
-                return (int)StatusCode >= 400;
+                foreach (var cookie in setCookieHeaders)
+                {
+                    var match = RegexSetCookie.Match(cookie);
+                    if (match.Success)
+                    {
+                        result[match.Groups[1].Value] = match.Groups[2].Value;
+                    }
+                }
             }
+
+            return result;
         }
 
         public override string ToString()
         {
-            var result = string.Format("Res: [{0}] {1} : {2}.{3}", Request.Method, Request.Url, (int)StatusCode, StatusCode);
+            var result = string.Format("Res: [{0}] {1}: {2}.{3}", Request.Method, Request.Url, (int)StatusCode, StatusCode);
 
-            if (HasHttpError && !Headers.ContentType.Equals("text/html", StringComparison.InvariantCultureIgnoreCase))
+            if (HasHttpError && Headers.ContentType.IsNotNullOrWhiteSpace() && !Headers.ContentType.Equals("text/html", StringComparison.InvariantCultureIgnoreCase))
             {
                 result += Environment.NewLine + Content;
             }

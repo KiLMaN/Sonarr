@@ -18,32 +18,32 @@ namespace NzbDrone.Core.DataAugmentation.Xem
 
     public class XemProxy : IXemProxy
     {
+        private const string ROOT_URL = "http://thexem.de/map/";
+
         private readonly Logger _logger;
         private readonly IHttpClient _httpClient;
-
-        private const string XEM_BASE_URL = "http://thexem.de/map/";
+        private readonly IHttpRequestBuilderFactory _xemRequestBuilder;
 
         private static readonly string[] IgnoredErrors = { "no single connection", "no show with the tvdb_id" };
-        private HttpRequestBuilder _xemRequestBuilder;
 
-
-        public XemProxy(Logger logger, IHttpClient httpClient)
+        public XemProxy(IHttpClient httpClient, Logger logger)
         {
-            _logger = logger;
             _httpClient = httpClient;
+            _logger = logger;
 
-            _xemRequestBuilder = new HttpRequestBuilder(XEM_BASE_URL)
-            {
-                PostProcess = r => r.UriBuilder.SetQueryParam("origin", "tvdb")
-            };
+            _xemRequestBuilder = new HttpRequestBuilder(ROOT_URL)
+                .AddSuffixQueryParam("origin", "tvdb")
+                .CreateFactory();
         }
-
 
         public List<int> GetXemSeriesIds()
         {
             _logger.Debug("Fetching Series IDs from");
 
-            var request = _xemRequestBuilder.Build("/havemap");
+            var request = _xemRequestBuilder.Create()
+                                            .Resource("/havemap")
+                                            .Build();
+
             var response = _httpClient.Get<XemResult<List<string>>>(request).Resource;
             CheckForFailureResult(response);
 
@@ -60,9 +60,10 @@ namespace NzbDrone.Core.DataAugmentation.Xem
         {
             _logger.Debug("Fetching Mappings for: {0}", id);
 
-
-            var request = _xemRequestBuilder.Build("/all");
-            request.UriBuilder.SetQueryParam("id", id);
+            var request = _xemRequestBuilder.Create()
+                                            .Resource("/all")
+                                            .AddQueryParam("id", id)
+                                            .Build();
 
             var response = _httpClient.Get<XemResult<List<XemSceneTvdbMapping>>>(request).Resource;
 
@@ -73,8 +74,10 @@ namespace NzbDrone.Core.DataAugmentation.Xem
         {
             _logger.Debug("Fetching alternate names");
 
-            var request = _xemRequestBuilder.Build("/allNames");
-            request.UriBuilder.SetQueryParam("seasonNumbers", true);
+            var request = _xemRequestBuilder.Create()
+                                            .Resource("/allNames")
+                                            .AddQueryParam("seasonNumbers", true)
+                                            .Build();
 
             var response = _httpClient.Get<XemResult<Dictionary<int, List<JObject>>>>(request).Resource;
 
@@ -102,7 +105,7 @@ namespace NzbDrone.Core.DataAugmentation.Xem
                                    {
                                        Title = n.Key,
                                        SearchTerm = n.Key,
-                                       SeasonNumber = seasonNumber,
+                                       SceneSeasonNumber = seasonNumber,
                                        TvdbId = series.Key
                                    });
                     }

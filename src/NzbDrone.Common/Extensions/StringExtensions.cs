@@ -92,5 +92,30 @@ namespace NzbDrone.Common.Extensions
 
             return "\"" + text + "\"";
         }
+
+        public static byte[] HexToByteArray(this string input)
+        {
+            return Enumerable.Range(0, input.Length)
+                             .Where(x => x%2 == 0)
+                             .Select(x => Convert.ToByte(input.Substring(x, 2), 16))
+                             .ToArray();
+        }
+
+        public static string ToHexString(this byte[] input)
+        {
+            return string.Concat(Array.ConvertAll(input, x => x.ToString("X2")));
+        }
+
+        public static string FromOctalString(this string octalValue)
+        {
+            octalValue = octalValue.TrimStart('\\');
+
+            var first = int.Parse(octalValue.Substring(0, 1));
+            var second = int.Parse(octalValue.Substring(1, 1));
+            var third = int.Parse(octalValue.Substring(2, 1));
+            var byteResult = (byte)((first << 6) | (second << 3) | (third));
+
+            return Encoding.ASCII.GetString(new [] { byteResult });
+        }
     }
 }

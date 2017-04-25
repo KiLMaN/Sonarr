@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 
 namespace NzbDrone.Core.Parser.Model
@@ -18,7 +17,20 @@ namespace NzbDrone.Core.Parser.Model
             {
                 return null;
             }
+
             return torrentInfo.Seeders;
+        }
+
+        public static int? GetPeers(ReleaseInfo release)
+        {
+            var torrentInfo = release as TorrentInfo;
+
+            if (torrentInfo == null)
+            {
+                return null;
+            }
+
+            return torrentInfo.Peers;
         }
 
         public override string ToString(string format)

@@ -50,7 +50,7 @@ namespace NzbDrone.Core.Update
         {
             if (configFileProvider == null)
             {
-                throw new ArgumentNullException("configFileProvider");
+                throw new ArgumentNullException(nameof(configFileProvider));
             }
             _checkUpdateService = checkUpdateService;
             _appFolderInfo = appFolderInfo;
@@ -73,9 +73,17 @@ namespace NzbDrone.Core.Update
 
             if (OsInfo.IsWindows || _configFileProvider.UpdateMechanism != UpdateMechanism.Script)
             {
-                if (!_diskProvider.FolderWritable(_appFolderInfo.StartUpFolder))
+                var startupFolder = _appFolderInfo.StartUpFolder;
+                var uiFolder = Path.Combine(startupFolder, "UI");
+
+                if (!_diskProvider.FolderWritable(startupFolder))
                 {
-                    throw new UpdateFolderNotWritableException("Cannot install update because startup folder '{0}' is not writable by the user '{1}'.", _appFolderInfo.StartUpFolder, Environment.UserName);
+                    throw new UpdateFolderNotWritableException("Cannot install update because startup folder '{0}' is not writable by the user '{1}'.", startupFolder, Environment.UserName);
+                }
+
+                if (!_diskProvider.FolderWritable(uiFolder))
+                {
+                    throw new UpdateFolderNotWritableException("Cannot install update because UI folder '{0}' is not writable by the user '{1}'.", uiFolder, Environment.UserName);
                 }
             }
 
@@ -140,7 +148,7 @@ namespace NzbDrone.Core.Update
                 }
                 catch (Exception e)
                 {
-                    _logger.ErrorException(string.Format("Couldn't change the branch from [{0}] to [{1}].", currentBranch, package.Branch), e);
+                    _logger.Error(e, "Couldn't change the branch from [{0}] to [{1}].", currentBranch, package.Branch);
                 }
             }
         }
@@ -191,33 +199,34 @@ namespace NzbDrone.Core.Update
 
             if (latestAvailable == null)
             {
-                _logger.ProgressDebug("No update available.");
+                _logger.ProgressDebug("No update available");
                 return;
             }
 
             if (OsInfo.IsNotWindows && !_configFileProvider.UpdateAutomatically && message.Trigger != CommandTrigger.Manual)
             {
-                _logger.ProgressDebug("Auto-update not enabled, not installing available update.");
+                _logger.ProgressDebug("Auto-update not enabled, not installing available update");
                 return;
             }
 
             try
             {
                 InstallUpdate(latestAvailable);
+                _logger.ProgressDebug("Restarting Sonarr to apply updates");
             }
             catch (UpdateFolderNotWritableException ex)
             {
-                _logger.ErrorException("Update process failed", ex);
+                _logger.Error(ex, "Update process failed");
                 throw new CommandFailedException("Startup folder not writable by user '{0}'", ex, Environment.UserName);
             }
             catch (UpdateVerificationFailedException ex)
             {
-                _logger.ErrorException("Update process failed", ex);
+                _logger.Error(ex, "Update process failed");
                 throw new CommandFailedException("Downloaded update package is corrupt", ex);
             }
             catch (UpdateFailedException ex)
             {
-                _logger.ErrorException("Update process failed", ex);
+                _logger.Error(ex, "Update process failed");
                 throw new CommandFailedException(ex);
             }
         }

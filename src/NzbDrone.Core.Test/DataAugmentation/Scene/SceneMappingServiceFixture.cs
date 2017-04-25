@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -6,7 +5,6 @@ using FizzWare.NBuilder;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.DataAugmentation.Scene;
-using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
 using FluentAssertions;
@@ -124,7 +122,7 @@ namespace NzbDrone.Core.Test.DataAugmentation.Scene
                   .Returns(Builder<SceneMapping>.CreateListOfSize(1).Build());
 
 
-            Subject.HandleAsync(new ApplicationStartedEvent());
+            Subject.Execute(new UpdateSceneMappingCommand());
 
             Mocker.GetMock<ISceneMappingRepository>()
                   .Verify(v => v.All(), Times.Once());
@@ -187,19 +185,133 @@ namespace NzbDrone.Core.Test.DataAugmentation.Scene
         {
             var mappings = new List<SceneMapping>
             {
-                new SceneMapping { Title = "Working!!", ParseTerm = "working", SearchTerm = "Working!!", TvdbId = 100, SeasonNumber = -1 },
-                new SceneMapping { Title = "Working!!", ParseTerm = "working", SearchTerm = "Working!!", TvdbId = 100, SeasonNumber = 1 },
-                new SceneMapping { Title = "Working`!!", ParseTerm = "working", SearchTerm = "Working`!!", TvdbId = 100, SeasonNumber = 2 },
-                new SceneMapping { Title = "Working!!!", ParseTerm = "working", SearchTerm = "Working!!!", TvdbId = 100, SeasonNumber = 3 },
+                new SceneMapping { Title = "Working!!", ParseTerm = "working", SearchTerm = "Working!!", TvdbId = 100, SceneSeasonNumber = 1 },
+                new SceneMapping { Title = "Working`!!", ParseTerm = "working", SearchTerm = "Working`!!", TvdbId = 100, SceneSeasonNumber = 2 },
+                new SceneMapping { Title = "Working!!!", ParseTerm = "working", SearchTerm = "Working!!!", TvdbId = 100, SceneSeasonNumber = 3 },
             };
 
             Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
 
             var tvdbId = Subject.FindTvdbId(parseTitle);
-            var seasonNumber = Subject.GetSeasonNumber(parseTitle);
+            var seasonNumber = Subject.GetSceneSeasonNumber(parseTitle);
 
             tvdbId.Should().Be(100);
             seasonNumber.Should().Be(expectedSeasonNumber);
+        }
+
+        [Test]
+        public void should_return_alternate_title_for_global_season()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu 1", ParseTerm = "fudanshikoukouseikatsu1", SearchTerm = "Fudanshi Koukou Seikatsu 1", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = null },
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu 2", ParseTerm = "fudanshikoukouseikatsu2", SearchTerm = "Fudanshi Koukou Seikatsu 2", TvdbId = 100, SeasonNumber = -1, SceneSeasonNumber = null },
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu 3", ParseTerm = "fudanshikoukouseikatsu3", SearchTerm = "Fudanshi Koukou Seikatsu 3", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = -1 },
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu 4", ParseTerm = "fudanshikoukouseikatsu4", SearchTerm = "Fudanshi Koukou Seikatsu 4", TvdbId = 100, SeasonNumber = -1, SceneSeasonNumber = -1 },
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            var names = Subject.GetSceneNames(100, new List<int> { 10 }, new List<int> { 10 });
+            names.Should().HaveCount(4);
+        }
+
+        [Test]
+        public void should_return_alternate_title_for_season()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu", ParseTerm = "fudanshikoukouseikatsu", SearchTerm = "Fudanshi Koukou Seikatsu", TvdbId = 100, SeasonNumber = 1, SceneSeasonNumber = null }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            var names = Subject.GetSceneNames(100, new List<int> { 1 }, new List<int> { 10 });
+            names.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void should_not_return_alternate_title_for_season()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu", ParseTerm = "fudanshikoukouseikatsu", SearchTerm = "Fudanshi Koukou Seikatsu", TvdbId = 100, SeasonNumber = 1, SceneSeasonNumber = null }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            var names = Subject.GetSceneNames(100, new List<int> { 2 }, new List<int> { 10 });
+            names.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_return_alternate_title_for_sceneseason()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu", ParseTerm = "fudanshikoukouseikatsu", SearchTerm = "Fudanshi Koukou Seikatsu", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = 1 }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            var names = Subject.GetSceneNames(100, new List<int> { 10 }, new List<int> { 1 });
+            names.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void should_not_return_alternate_title_for_sceneseason()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu", ParseTerm = "fudanshikoukouseikatsu", SearchTerm = "Fudanshi Koukou Seikatsu", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = 1 }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            var names = Subject.GetSceneNames(100, new List<int> { 10 }, new List<int> { 2 });
+            names.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_return_alternate_title_for_fairy_tail()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fairy Tail S2", ParseTerm = "fairytails2", SearchTerm = "Fairy Tail S2", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = 2 }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            Subject.GetSceneNames(100, new List<int> { 4 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 5 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 6 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 7 }, new List<int> { 20 }).Should().BeEmpty();
+
+            Subject.GetSceneNames(100, new List<int> { 20 }, new List<int> { 1 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 20 }, new List<int> { 2 }).Should().NotBeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 20 }, new List<int> { 3 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 20 }, new List<int> { 4 }).Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_return_alternate_title_for_fudanshi()
+        {
+            var mappings = new List<SceneMapping>
+            {
+                new SceneMapping { Title = "Fudanshi Koukou Seikatsu", ParseTerm = "fudanshikoukouseikatsu", SearchTerm = "Fudanshi Koukou Seikatsu", TvdbId = 100, SeasonNumber = null, SceneSeasonNumber = 1 }
+            };
+
+            Mocker.GetMock<ISceneMappingRepository>().Setup(c => c.All()).Returns(mappings);
+
+            Subject.GetSceneNames(100, new List<int> { 1 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 2 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 3 }, new List<int> { 20 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 4 }, new List<int> { 20 }).Should().BeEmpty();
+
+            Subject.GetSceneNames(100, new List<int> { 1 }, new List<int> { 1 }).Should().NotBeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 2 }, new List<int> { 2 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 3 }, new List<int> { 3 }).Should().BeEmpty();
+            Subject.GetSceneNames(100, new List<int> { 4 }, new List<int> { 4 }).Should().BeEmpty();
         }
 
         private void AssertNoUpdate()
@@ -217,7 +329,7 @@ namespace NzbDrone.Core.Test.DataAugmentation.Scene
 
             foreach (var sceneMapping in _fakeMappings)
             {
-                Subject.GetSceneNames(sceneMapping.TvdbId, _fakeMappings.Select(m => m.SeasonNumber)).Should().Contain(sceneMapping.SearchTerm);
+                Subject.GetSceneNames(sceneMapping.TvdbId, _fakeMappings.Select(m => m.SeasonNumber.Value).Distinct().ToList(), new List<int>()).Should().Contain(sceneMapping.SearchTerm);
                 Subject.FindTvdbId(sceneMapping.ParseTerm).Should().Be(sceneMapping.TvdbId);
             }
         }

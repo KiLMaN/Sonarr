@@ -37,7 +37,7 @@ var _fieldBuilder = function(field) {
         return _templateRenderer.call(field, 'Form/HiddenTemplate');
     }
 
-    if (field.type === 'path') {
+    if (field.type === 'path' || field.type === 'filepath') {
         return _templateRenderer.call(field, 'Form/PathTemplate');
     }
 
@@ -49,6 +49,9 @@ var _fieldBuilder = function(field) {
         return _templateRenderer.call(field, 'Form/ActionTemplate');
     }
 
+    if (field.type === 'captcha') {
+        return _templateRenderer.call(field, 'Form/CaptchaTemplate');
+    }
 
     return _templateRenderer.call(field, 'Form/TextboxTemplate');
 };

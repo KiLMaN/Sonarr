@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
 using Moq;
@@ -16,7 +15,6 @@ namespace NzbDrone.Core.Test.NotificationTests.Xbmc.Json
     {
         private const int TVDB_ID = 5;
         private XbmcSettings _settings;
-        private Series _series;
         private List<TvShow> _xbmcSeries;
 
         [SetUp]

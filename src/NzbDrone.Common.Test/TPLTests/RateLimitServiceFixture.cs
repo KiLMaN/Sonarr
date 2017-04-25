@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.TPL;
@@ -62,6 +59,7 @@ namespace NzbDrone.Common.Test.TPLTests
         }
 
         [Test]
+        [Retry(3)]
         public void should_wait_for_existing()
         {
             GivenExisting("me", _epoch + TimeSpan.FromMilliseconds(200));
@@ -70,7 +68,7 @@ namespace NzbDrone.Common.Test.TPLTests
             Subject.WaitAndPulse("me", TimeSpan.FromMilliseconds(400));
             watch.Stop();
 
-            watch.ElapsedMilliseconds.Should().BeInRange(195, 250);
+            watch.ElapsedMilliseconds.Should().BeInRange(175, 250);
         }
 
         [Test]

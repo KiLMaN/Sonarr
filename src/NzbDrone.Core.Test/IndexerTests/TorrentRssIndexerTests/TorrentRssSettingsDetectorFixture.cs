@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using FluentAssertions;
+﻿using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
@@ -164,6 +161,66 @@ namespace NzbDrone.Core.Test.IndexerTests.TorrentRssIndexerTests
         }
 
         [Test]
+        public void should_detect_rss_settings_for_ExtraTorrents()
+        {
+            _indexerSettings.AllowZeroSize = true;
+
+            GivenRecentFeedResponse("TorrentRss/ExtraTorrents.xml");
+
+            var settings = Subject.Detect(_indexerSettings);
+
+            settings.ShouldBeEquivalentTo(new TorrentRssIndexerParserSettings
+            {
+                UseEZTVFormat = false,
+                UseEnclosureUrl = true,
+                UseEnclosureLength = true,
+                ParseSizeInDescription = false,
+                ParseSeedersInDescription = false,
+                SizeElementName = null
+            });
+        }
+
+        [Test]
+        public void should_detect_rss_settings_for_LimeTorrents()
+        {
+            _indexerSettings.AllowZeroSize = true;
+
+            GivenRecentFeedResponse("TorrentRss/LimeTorrents.xml");
+
+            var settings = Subject.Detect(_indexerSettings);
+
+            settings.ShouldBeEquivalentTo(new TorrentRssIndexerParserSettings
+            {
+                UseEZTVFormat = false,
+                UseEnclosureUrl = true,
+                UseEnclosureLength = true,
+                ParseSizeInDescription = false,
+                ParseSeedersInDescription = false,
+                SizeElementName = null
+            });
+        }
+
+        [Test]
+        public void should_detect_rss_settings_for_AlphaRatio()
+        {
+            _indexerSettings.AllowZeroSize = true;
+
+            GivenRecentFeedResponse("TorrentRss/AlphaRatio.xml");
+
+            var settings = Subject.Detect(_indexerSettings);
+
+            settings.ShouldBeEquivalentTo(new TorrentRssIndexerParserSettings
+            {
+                UseEZTVFormat = false,
+                UseEnclosureUrl = false,
+                UseEnclosureLength = false,
+                ParseSizeInDescription = true,
+                ParseSeedersInDescription = false,
+                SizeElementName = null
+            });
+        }
+
+        [Test]
         [Ignore("Cannot reliably reject unparseable titles")]
         public void should_reject_rss_settings_for_AwesomeHD()
         {
@@ -176,9 +233,28 @@ namespace NzbDrone.Core.Test.IndexerTests.TorrentRssIndexerTests
             settings.Should().BeNull();
         }
 
+        [Test]
+        public void should_detect_rss_settings_for_AnimeTosho_without_size()
+        {
+            _indexerSettings.AllowZeroSize = true;
+
+            GivenRecentFeedResponse("TorrentRss/AnimeTosho_NoSize.xml");
+
+            var settings = Subject.Detect(_indexerSettings);
+
+            settings.ShouldBeEquivalentTo(new TorrentRssIndexerParserSettings
+            {
+                UseEZTVFormat = false,
+                UseEnclosureUrl = true,
+                UseEnclosureLength = false,
+                ParseSizeInDescription = true,
+                ParseSeedersInDescription = false,
+                SizeElementName = null
+            });
+        }
+
         [TestCase("BitMeTv/BitMeTv.xml")]
         [TestCase("Fanzub/fanzub.xml")]
-        [TestCase("KickassTorrents/KickassTorrents.xml")]
         [TestCase("IPTorrents/IPTorrents.xml")]
         [TestCase("Newznab/newznab_nzb_su.xml")]
         [TestCase("Nyaa/Nyaa.xml")]
@@ -211,13 +287,10 @@ namespace NzbDrone.Core.Test.IndexerTests.TorrentRssIndexerTests
 
             var ex = Assert.Throws<UnsupportedFeedException>(() => Subject.Detect(_indexerSettings));
 
-            ex.Message.Should().Contain("Empty feed");
-
-            ExceptionVerification.ExpectedErrors(1);
+            ex.Message.Should().Contain("Rss feed must have a pubDate");
         }
 
         [TestCase("Torrentleech/Torrentleech.xml")]
-        [TestCase("Wombles/wombles.xml")]
         [TestCase("TorrentRss/invalid/Eztv_InvalidSize.xml")]
         [TestCase("TorrentRss/invalid/ImmortalSeed_InvalidSize.xml")]
         [TestCase("TorrentRss/Doki.xml")]

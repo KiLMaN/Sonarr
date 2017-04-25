@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ImageResizer;
+﻿using ImageResizer;
 using NzbDrone.Common.Disk;
 
 namespace NzbDrone.Core.MediaCover
@@ -24,6 +21,8 @@ namespace NzbDrone.Core.MediaCover
         {
             try
             {
+                GdiPlusInterop.CheckGdiPlus();
+
                 using (var sourceStream = _diskProvider.OpenReadStream(source))
                 {
                     using (var outputStream = _diskProvider.OpenWriteStream(destination))

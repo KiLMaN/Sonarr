@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Data.SQLite;
 using System.Diagnostics;
 using System.Reflection;
 using FluentMigrator.Runner;
@@ -8,7 +8,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
 {
     public interface IMigrationController
     {
-        void MigrateToLatest(string connectionString, MigrationType migrationType, Action<NzbDroneMigrationBase> beforeMigration);
+        void Migrate(string connectionString, MigrationContext migrationContext);
     }
 
     public class MigrationController : IMigrationController
@@ -20,7 +20,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
             _announcer = announcer;
         }
 
-        public void MigrateToLatest(string connectionString, MigrationType migrationType, Action<NzbDroneMigrationBase> beforeMigration)
+        public void Migrate(string connectionString, MigrationContext migrationContext)
         {
             var sw = Stopwatch.StartNew();
 
@@ -28,17 +28,36 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
 
             var assembly = Assembly.GetExecutingAssembly();
 
-            var migrationContext = new RunnerContext(_announcer)
-                {
-                    Namespace = "NzbDrone.Core.Datastore.Migration",
-                    ApplicationContext = new MigrationContext(migrationType, beforeMigration)
-                };
+            var runnerContext = new RunnerContext(_announcer)
+            {
+                Namespace = "NzbDrone.Core.Datastore.Migration",
+                ApplicationContext = migrationContext
+            };
 
             var options = new MigrationOptions { PreviewOnly = false, Timeout = 60 };
             var factory = new NzbDroneSqliteProcessorFactory();
             var processor = factory.Create(connectionString, _announcer, options);
-            var runner = new MigrationRunner(assembly, migrationContext, processor);
-            runner.MigrateUp(true);
+
+            try
+            {
+                var runner = new MigrationRunner(assembly, runnerContext, processor);
+
+                if (migrationContext.DesiredVersion.HasValue)
+                {
+                    runner.MigrateUp(migrationContext.DesiredVersion.Value, true);
+                }
+                else
+                {
+                    runner.MigrateUp(true);
+                }
+            }
+            catch (SQLiteException)
+            {
+                processor.Dispose();
+                SQLiteConnection.ClearAllPools();
+                throw;
+            }
+            
 
             sw.Stop();
 

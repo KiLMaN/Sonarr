@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using FluentValidation.Results;
 using NLog;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
-using NzbDrone.Core.Notifications.Plex.Models;
 
 namespace NzbDrone.Core.Notifications.Plex
 {
@@ -35,7 +31,7 @@ namespace NzbDrone.Core.Notifications.Plex
             }
             catch(Exception ex)
             {
-                _logger.WarnException("Failed to send notification to Plex Client: " + settings.Host, ex);
+                _logger.Warn(ex, "Failed to send notification to Plex Client: " + settings.Host);
             }
         }
 
@@ -67,7 +63,7 @@ namespace NzbDrone.Core.Notifications.Plex
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Unable to send test message: " + ex.Message, ex);
+                _logger.Error(ex, "Unable to send test message");
                 return new ValidationFailure("Host", "Unable to send test message");
             }
 

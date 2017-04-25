@@ -24,41 +24,17 @@ namespace NzbDrone.Core.Download
 
         public abstract string Name { get; }
 
-        public Type ConfigContract
-        {
-            get
-            {
-                return typeof(TSettings);
-            }
-        }
+        public Type ConfigContract => typeof(TSettings);
 
-        public virtual ProviderMessage Message
-        {
-            get
-            {
-                return null;
-            }
-        }
+        public virtual ProviderMessage Message => null;
 
-        public IEnumerable<ProviderDefinition> DefaultDefinitions
-        {
-            get
-            {
-                return new List<ProviderDefinition>();
-            }
-        }
+        public IEnumerable<ProviderDefinition> DefaultDefinitions => new List<ProviderDefinition>();
 
         public ProviderDefinition Definition { get; set; }
 
-        public object ConnectData(string stage, IDictionary<string, object> query) { return null; }
+        public virtual object RequestAction(string action, IDictionary<string, string> query) { return null; }
 
-        protected TSettings Settings
-        {
-            get
-            {
-                return (TSettings)Definition.Settings;
-            }
-        }
+        protected TSettings Settings => (TSettings)Definition.Settings;
 
         protected DownloadClientBase(IConfigService configService, 
             IDiskProvider diskProvider, 
@@ -127,21 +103,21 @@ namespace NzbDrone.Core.Download
             }
             catch (Exception ex)
             {
-                _logger.WarnException(string.Format("[{0}] Error occurred while trying to delete data from '{1}'.", item.Title, item.OutputPath), ex);
+                _logger.Warn(ex, string.Format("[{0}] Error occurred while trying to delete data from '{1}'.", item.Title, item.OutputPath));
             }
         }
 
         public ValidationResult Test()
         {
             var failures = new List<ValidationFailure>();
-            
+
             try
             {
                 Test(failures);
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Test aborted due to exception", ex);
+                _logger.Error(ex, "Test aborted due to exception");
                 failures.Add(new ValidationFailure(string.Empty, "Test was aborted due to an error: " + ex.Message));
             }
 

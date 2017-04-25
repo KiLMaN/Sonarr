@@ -8,6 +8,7 @@ using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Processes;
 using NzbDrone.Common.Security;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Instrumentation;
 
 namespace NzbDrone.Host
 {
@@ -20,6 +21,7 @@ namespace NzbDrone.Host
         {
             try
             {
+                SecurityProtocolPolicy.Register();
                 X509CertificateValidationPolicy.Register();
 
                 Logger.Info("Starting Sonarr - {0} - Version {1}", Assembly.GetCallingAssembly().Location, Assembly.GetExecutingAssembly().GetName().Version);
@@ -56,6 +58,8 @@ namespace NzbDrone.Host
 
         private static void Start(ApplicationModes applicationModes, StartupContext startupContext)
         {
+            _container.Resolve<ReconfigureLogging>().Reconfigure();
+
             if (!IsInUtilityMode(applicationModes))
             {
                 if (startupContext.Flags.Contains(StartupContext.RESTART))

@@ -1,7 +1,5 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Collections.Generic;
-using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.IndexerSearch.Definitions;
 
@@ -13,6 +11,8 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
         public int PageSize { get; set; }
         public BroadcastheNetSettings Settings { get; set; }
 
+        public int? LastRecentTorrentID { get; set; }
+
         public BroadcastheNetRequestGenerator()
         {
             MaxPages = 10;
@@ -23,7 +23,18 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
         {
             var pageableRequests = new IndexerPageableRequestChain();
 
-            pageableRequests.Add(GetPagedRequests(MaxPages, null));
+            if (LastRecentTorrentID.HasValue)
+            {
+                pageableRequests.Add(GetPagedRequests(MaxPages, new BroadcastheNetTorrentQuery()
+                {
+                    Id = ">=" + (LastRecentTorrentID.Value - 100)
+                }));
+            }
+            
+            pageableRequests.AddTier(GetPagedRequests(MaxPages, new BroadcastheNetTorrentQuery()
+            {
+                Age = "<=86400"
+            }));
 
             return pageableRequests;
         }
@@ -40,7 +51,7 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
                     parameters = parameters.Clone();
 
                     parameters.Category = "Episode";
-                    parameters.Name = string.Format("S{0:00}E{1:00}", episode.SeasonNumber, episode.EpisodeNumber);
+                    parameters.Name = string.Format("S{0:00}%E{1:00}%", episode.SeasonNumber, episode.EpisodeNumber);
 
                     pageableRequests.Add(GetPagedRequests(MaxPages, parameters));
                 }
@@ -88,7 +99,7 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
         public virtual IndexerPageableRequestChain GetSearchRequests(DailyEpisodeSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();
-            
+
             var parameters = new BroadcastheNetTorrentQuery();
             if (AddSeriesSearchParameters(parameters, searchCriteria))
             {
@@ -96,6 +107,18 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
                 parameters.Name = string.Format("{0:yyyy}.{0:MM}.{0:dd}", searchCriteria.AirDate);
 
                 pageableRequests.Add(GetPagedRequests(MaxPages, parameters));
+
+                pageableRequests.AddTier();
+
+                foreach (var episode in searchCriteria.Episodes)
+                {
+                    parameters = parameters.Clone();
+
+                    parameters.Category = "Episode";
+                    parameters.Name = string.Format("S{0:00}E{1:00}", episode.SeasonNumber, episode.EpisodeNumber);
+
+                    pageableRequests.Add(GetPagedRequests(MaxPages, parameters));
+                }
             }
 
             return pageableRequests;
@@ -155,19 +178,15 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
 
         private IEnumerable<IndexerRequest> GetPagedRequests(int maxPages, BroadcastheNetTorrentQuery parameters)
         {
-            if (parameters == null)
+            var builder = new JsonRpcRequestBuilder(Settings.BaseUrl)
+                .Call("getTorrents", Settings.ApiKey, parameters, PageSize, 0);
+            builder.SuppressHttpError = true;
+
+            for (var page = 0; page < maxPages; page++)
             {
-                parameters = new BroadcastheNetTorrentQuery();
-            }
+                builder.JsonParameters[3] = page * PageSize;
 
-            var builder = new JsonRpcRequestBuilder(Settings.BaseUrl, "getTorrents", new object[] { Settings.ApiKey, parameters, PageSize, 0 });
-            builder.SupressHttpError = true;
-
-            for (var page = 0; page < maxPages;page++)
-            {
-                builder.Parameters[3] = page * PageSize;
-
-                yield return new IndexerRequest(builder.Build(""));
+                yield return new IndexerRequest(builder.Build());
             }
         }
     }

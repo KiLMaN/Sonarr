@@ -11,6 +11,11 @@ namespace NzbDrone.Core.Indexers.Newznab
     {
         public const string ns = "{http://www.newznab.com/DTD/2010/feeds/attributes/}";
 
+        public NewznabRssParser()
+        {
+            PreferredEnclosureMimeType = "application/x-nzb";
+        }
+
         protected override bool PreProcess(IndexerResponse indexerResponse)
         {
             var xdoc = LoadXmlDocument(indexerResponse);
@@ -27,7 +32,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                 throw new ApiKeyException("Invalid API key");
             }
 
-            if (!indexerResponse.Request.Url.ToString().Contains("apikey=") && (errorMessage == "Missing parameter" || errorMessage.Contains("apikey")))
+            if (!indexerResponse.Request.Url.FullUri.Contains("apikey=") && (errorMessage == "Missing parameter" || errorMessage.Contains("apikey")))
             {
                 throw new ApiKeyException("Indexer requires an API key");
             }
@@ -48,6 +53,17 @@ namespace NzbDrone.Core.Indexers.Newznab
             releaseInfo.TvRageId = GetTvRageId(item);
 
             return releaseInfo;
+        }
+
+        protected override ReleaseInfo PostProcess(XElement item, ReleaseInfo releaseInfo)
+        {
+            var enclosureType = GetEnclosure(item).Attribute("type").Value;
+            if (enclosureType.Contains("application/x-bittorrent"))
+            {
+                throw new UnsupportedFeedException("Feed contains {0}, did you intend to add a Torznab indexer?", enclosureType);
+            }
+
+            return base.PostProcess(item, releaseInfo);
         }
 
         protected override string GetInfoUrl(XElement item)

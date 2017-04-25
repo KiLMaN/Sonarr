@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 using FluentValidation.Results;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Core.Tv;
+using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Notifications.Twitter
 {
@@ -15,61 +16,58 @@ namespace NzbDrone.Core.Notifications.Twitter
             _twitterService = twitterService;
         }
 
-        public override string Link
-        {
-            get { return "https://twitter.com/"; }
-        }
+        public override string Name => "Twitter";
+        public override string Link => "https://twitter.com/";
 
-        public override void OnGrab(GrabMessage grabMessage)
+        public override void OnGrab(GrabMessage message)
         {
-            _twitterService.SendNotification(grabMessage.Message, Settings);
+            _twitterService.SendNotification($"Grabbed: {message.Message}", Settings);
         }
 
         public override void OnDownload(DownloadMessage message)
         {
-            _twitterService.SendNotification(message.Message, Settings);
+            _twitterService.SendNotification($"Imported: {message.Message}", Settings);
         }
 
-        public override void OnRename(Series series)
+        public override object RequestAction(string action, IDictionary<string, string> query)
         {
-        }
-
-        public override object ConnectData(string stage, IDictionary<string, object> query)
-        {
-            if (stage == "step1")
+            if (action == "startOAuth")
             {
-                return new 
+                Settings.Validate().Filter("ConsumerKey", "ConsumerSecret").ThrowOnError();
+
+                if (query["callbackUrl"].IsNullOrWhiteSpace())
                 {
-                    nextStep = "step2",
-                    action = "openWindow",
-                    url = _twitterService.GetOAuthRedirect(query["callbackUrl"].ToString())
-                };
-            }
-            else if (stage == "step2")
-            {
+                    throw new BadRequestException("QueryParam callbackUrl invalid.");
+                }
+
+                var oauthRedirectUrl = _twitterService.GetOAuthRedirect(Settings.ConsumerKey, Settings.ConsumerSecret, query["callbackUrl"]);
                 return new
                 {
-                    action = "updateFields",
-                    fields = _twitterService.GetOAuthToken(query["oauth_token"].ToString(), query["oauth_verifier"].ToString())
+                    oauthUrl = oauthRedirectUrl
                 };
             }
-            return new {};
-        }
-
-        public override string Name
-        {
-            get
+            else if (action == "getOAuthToken")
             {
-                return "Twitter";
-            }
-        }
+                Settings.Validate().Filter("ConsumerKey", "ConsumerSecret").ThrowOnError();
 
-        public override bool SupportsOnRename
-        {
-            get
-            {
-                return false;
+                if (query["oauth_token"].IsNullOrWhiteSpace())
+                {
+                    throw new BadRequestException("QueryParam oauth_token invalid.");
+                }
+
+                if (query["oauth_verifier"].IsNullOrWhiteSpace())
+                {
+                    throw new BadRequestException("QueryParam oauth_verifier invalid.");
+                }
+
+                var oauthToken = _twitterService.GetOAuthToken(Settings.ConsumerKey, Settings.ConsumerSecret, query["oauth_token"], query["oauth_verifier"]);
+                return new
+                {
+                    accessToken = oauthToken.AccessToken,
+                    accessTokenSecret = oauthToken.AccessTokenSecret
+                };
             }
+            return new { };
         }
 
         public override ValidationResult Test()

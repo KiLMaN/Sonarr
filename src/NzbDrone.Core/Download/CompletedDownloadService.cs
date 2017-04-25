@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
-using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
@@ -112,7 +111,7 @@ namespace NzbDrone.Core.Download
         private void Import(TrackedDownload trackedDownload)
         {
             var outputPath = trackedDownload.DownloadItem.OutputPath.FullPath;
-            var importResults = _downloadedEpisodesImportService.ProcessPath(outputPath, trackedDownload.RemoteEpisode.Series, trackedDownload.DownloadItem);
+            var importResults = _downloadedEpisodesImportService.ProcessPath(outputPath, ImportMode.Auto, trackedDownload.RemoteEpisode.Series, trackedDownload.DownloadItem);
 
             if (importResults.Empty())
             {

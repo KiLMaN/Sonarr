@@ -78,20 +78,27 @@ namespace NzbDrone.Core.DecisionEngine
                         var remoteEpisode = _parsingService.Map(parsedEpisodeInfo, report.TvdbId, report.TvRageId, searchCriteria);
                         remoteEpisode.Release = report;
 
-                        if (remoteEpisode.Series != null)
+                        if (remoteEpisode.Series == null)
                         {
-                            remoteEpisode.DownloadAllowed = remoteEpisode.Episodes.Any();
-                            decision = GetDecisionForReport(remoteEpisode, searchCriteria);
+                            decision = new DownloadDecision(remoteEpisode, new Rejection("Unknown Series"));
+                        }
+                        else if (remoteEpisode.Episodes.Empty())
+                        {
+                            decision = new DownloadDecision(remoteEpisode, new Rejection("Unable to parse episodes from release name"));
                         }
                         else
                         {
-                            decision = new DownloadDecision(remoteEpisode, new Rejection("Unknown Series"));
+                            remoteEpisode.DownloadAllowed = remoteEpisode.Episodes.Any();
+                            decision = GetDecisionForReport(remoteEpisode, searchCriteria);
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.ErrorException("Couldn't process release.", e);
+                    _logger.Error(e, "Couldn't process release.");
+
+                    var remoteEpisode = new RemoteEpisode { Release = report };
+                    decision = new DownloadDecision(remoteEpisode, new Rejection("Unexpected error processing release"));
                 }
 
                 reportNumber++;
@@ -115,8 +122,16 @@ namespace NzbDrone.Core.DecisionEngine
 
         private DownloadDecision GetDecisionForReport(RemoteEpisode remoteEpisode, SearchCriteriaBase searchCriteria = null)
         {
-            var reasons = _specifications.Select(c => EvaluateSpec(c, remoteEpisode, searchCriteria))
-                                         .Where(c => c != null);
+            var reasons = new Rejection[0];
+
+            foreach (var specifications in _specifications.GroupBy(v => v.Priority).OrderBy(v => v.Key))
+            {
+                reasons = specifications.Select(c => EvaluateSpec(c, remoteEpisode, searchCriteria))
+                                        .Where(c => c != null)
+                                        .ToArray();
+
+                if (reasons.Any()) break;
+            }
 
             return new DownloadDecision(remoteEpisode, reasons.ToArray());
         }
@@ -136,8 +151,8 @@ namespace NzbDrone.Core.DecisionEngine
             {
                 e.Data.Add("report", remoteEpisode.Release.ToJson());
                 e.Data.Add("parsed", remoteEpisode.ParsedEpisodeInfo.ToJson());
-                _logger.ErrorException("Couldn't evaluate decision on " + remoteEpisode.Release.Title, e);
-                return new Rejection(string.Format("{0}: {1}", spec.GetType().Name, e.Message));
+                _logger.Error(e, "Couldn't evaluate decision on {0}", remoteEpisode.Release.Title);
+                return new Rejection($"{spec.GetType().Name}: {e.Message}");
             }
 
             return null;

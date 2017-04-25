@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections.Generic;
 using FluentAssertions;
@@ -92,14 +92,14 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
         protected void GivenFailedDownload()
         {
             Mocker.GetMock<INzbgetProxy>()
-                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbgetSettings>()))
+                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<NzbgetSettings>()))
                 .Returns((string)null);
         }
 
         protected void GivenSuccessfulDownload()
         {
             Mocker.GetMock<INzbgetProxy>()
-                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<NzbgetSettings>()))
+                .Setup(s => s.DownloadNzb(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<NzbgetSettings>()))
                 .Returns(Guid.NewGuid().ToString().Replace("-", ""));
         }
 
@@ -163,10 +163,13 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
 
             GivenQueue(_queued);
             GivenHistory(null);
-            
+
             var result = Subject.GetItems().Single();
 
             VerifyQueued(result);
+
+            result.CanBeRemoved.Should().BeTrue();
+            result.CanMoveFiles.Should().BeTrue();
         }
 
         [Test]
@@ -180,6 +183,9 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
             var result = Subject.GetItems().Single();
 
             VerifyPaused(result);
+
+            result.CanBeRemoved.Should().BeTrue();
+            result.CanMoveFiles.Should().BeTrue();
         }
 
         [Test]
@@ -193,6 +199,25 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
             var result = Subject.GetItems().Single();
 
             VerifyDownloading(result);
+
+            result.CanBeRemoved.Should().BeTrue();
+            result.CanMoveFiles.Should().BeTrue();
+        }
+
+        [Test]
+        public void post_processing_item_should_have_required_properties()
+        {
+            _queued.ActiveDownloads = 1;
+
+            GivenQueue(_queued);
+            GivenHistory(null);
+
+            _queued.RemainingSizeLo = 0;
+
+            var result = Subject.GetItems().Single();
+
+            result.CanBeRemoved.Should().BeTrue();
+            result.CanMoveFiles.Should().BeTrue();
         }
 
         [Test]
@@ -204,6 +229,9 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
             var result = Subject.GetItems().Single();
 
             VerifyCompleted(result);
+
+            result.CanBeRemoved.Should().BeTrue();
+            result.CanMoveFiles.Should().BeTrue();
         }
 
         [Test]
@@ -231,7 +259,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
         }
 
         [Test]
-        public void should_report_deletestatus_dupe_as_warning()
+        public void should_report_deletestatus_dupe_as_failed()
         {
             _completed.DeleteStatus = "DUPE";
 
@@ -240,7 +268,20 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.NzbgetTests
 
             var result = Subject.GetItems().Single();
 
-            result.Status.Should().Be(DownloadItemStatus.Warning);
+            result.Status.Should().Be(DownloadItemStatus.Failed);
+        }
+
+        [Test]
+        public void should_report_deletestatus_copy_as_failed()
+        {
+            _completed.DeleteStatus = "COPY";
+
+            GivenQueue(null);
+            GivenHistory(_completed);
+
+            var result = Subject.GetItems().Single();
+
+            result.Status.Should().Be(DownloadItemStatus.Failed);
         }
 
         [Test]

@@ -64,7 +64,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 {
                     var clientTrackedDownloads = ProcessClientDownloads(downloadClient);
 
-                    // Only track completed downloads if 
+                    // Only track completed downloads if
                     trackedDownloads.AddRange(clientTrackedDownloads.Where(DownloadIsTrackable));
                 }
 
@@ -87,7 +87,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             }
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to retrieve queue and history items from " + downloadClient.Definition.Name, ex);
+                _logger.Warn(ex, "Unable to retrieve queue and history items from " + downloadClient.Definition.Name);
             }
 
             foreach (var downloadItem in downloadClientHistory)
@@ -107,7 +107,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         private void RemoveCompletedDownloads(List<TrackedDownload> trackedDownloads)
         {
-            foreach (var trackedDownload in trackedDownloads.Where(c => !c.DownloadItem.IsReadOnly && c.State == TrackedDownloadStage.Imported))
+            foreach (var trackedDownload in trackedDownloads.Where(c => c.DownloadItem.CanBeRemoved && c.State == TrackedDownloadStage.Imported))
             {
                 _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload));
             }
@@ -135,7 +135,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             }
             catch (Exception e)
             {
-                _logger.ErrorException("Couldn't process tracked download " + downloadItem.Title, e);
+                _logger.Error(e, "Couldn't process tracked download {0}", downloadItem.Title);
             }
 
             return trackedDownloads;

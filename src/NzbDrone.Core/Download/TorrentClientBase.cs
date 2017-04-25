@@ -34,13 +34,9 @@ namespace NzbDrone.Core.Download
             _torrentFileInfoReader = torrentFileInfoReader;
         }
         
-        public override DownloadProtocol Protocol
-        {
-            get
-            {
-                return DownloadProtocol.Torrent;
-            }
-        }
+        public override DownloadProtocol Protocol => DownloadProtocol.Torrent;
+
+        public virtual bool PreferTorrentFile => false;
 
         protected abstract string AddFromMagnetLink(RemoteEpisode remoteEpisode, string hash, string magnetLink);
         protected abstract string AddFromTorrentFile(RemoteEpisode remoteEpisode, string hash, string filename, byte[] fileContent);
@@ -65,32 +61,64 @@ namespace NzbDrone.Core.Download
             {
                 magnetUrl = torrentInfo.MagnetUrl;
             }
-
-            string hash = null;
-
-            if (magnetUrl.IsNotNullOrWhiteSpace())
+            
+            if (PreferTorrentFile)
             {
-                try
+                if (torrentUrl.IsNotNullOrWhiteSpace())
                 {
-                    hash = DownloadFromMagnetUrl(remoteEpisode, magnetUrl);
+                    try
+                    {
+                        return DownloadFromWebUrl(remoteEpisode, torrentUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!magnetUrl.IsNullOrWhiteSpace())
+                        {
+                            throw;
+                        }
+
+                        _logger.Debug("Torrent download failed, trying magnet. ({0})", ex.Message);
+                    }
                 }
-                catch (NotSupportedException ex)
+
+                if (magnetUrl.IsNotNullOrWhiteSpace())
                 {
-                    if (torrentUrl.IsNullOrWhiteSpace())
+                    try
+                    {
+                        return DownloadFromMagnetUrl(remoteEpisode, magnetUrl);
+                    }
+                    catch (NotSupportedException ex)
                     {
                         throw new ReleaseDownloadException(remoteEpisode.Release, "Magnet not supported by download client. ({0})", ex.Message);
                     }
+                }
+            }
+            else
+            {
+                if (magnetUrl.IsNotNullOrWhiteSpace())
+                {
+                    try
+                    {
+                        return DownloadFromMagnetUrl(remoteEpisode, magnetUrl);
+                    }
+                    catch (NotSupportedException ex)
+                    {
+                        if (torrentUrl.IsNullOrWhiteSpace())
+                        {
+                            throw new ReleaseDownloadException(remoteEpisode.Release, "Magnet not supported by download client. ({0})", ex.Message);
+                        }
 
-                    _logger.Debug("Magnet not supported by download client, trying torrent. ({0})", ex.Message);
+                        _logger.Debug("Magnet not supported by download client, trying torrent. ({0})", ex.Message);
+                    }
+                }
+
+                if (torrentUrl.IsNotNullOrWhiteSpace())
+                {
+                    return DownloadFromWebUrl(remoteEpisode, torrentUrl);
                 }
             }
 
-            if (hash == null && torrentUrl.IsNotNullOrWhiteSpace())
-            {
-                hash = DownloadFromWebUrl(remoteEpisode, torrentUrl);
-            }
-
-            return hash;
+            return null;
         }
 
         private string DownloadFromWebUrl(RemoteEpisode remoteEpisode, string torrentUrl)
@@ -107,7 +135,7 @@ namespace NzbDrone.Core.Download
 
                 if (response.StatusCode == HttpStatusCode.SeeOther || response.StatusCode == HttpStatusCode.Found)
                 {
-                    var locationHeader = (string)response.Headers.GetValueOrDefault("Location", null);
+                    var locationHeader = response.Headers.GetSingleValue("Location");
 
                     _logger.Trace("Torrent request is being redirected to: {0}", locationHeader);
 
@@ -130,15 +158,20 @@ namespace NzbDrone.Core.Download
             }
             catch (HttpException ex)
             {
-                _logger.ErrorException(string.Format("Downloading torrent file for episode '{0}' failed ({1})",
-                    remoteEpisode.Release.Title, torrentUrl), ex);
+                if ((int)ex.Response.StatusCode == 429)
+                {
+                    _logger.Error("API Grab Limit reached for {0}", torrentUrl);
+                }
+                else
+                {
+                    _logger.Error(ex, "Downloading torrent file for episode '{0}' failed ({1})", remoteEpisode.Release.Title, torrentUrl);
+                }
 
                 throw new ReleaseDownloadException(remoteEpisode.Release, "Downloading torrent failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.ErrorException(string.Format("Downloading torrent file for episode '{0}' failed ({1})",
-                    remoteEpisode.Release.Title, torrentUrl), ex);
+                _logger.Error(ex, "Downloading torrent file for episode '{0}' failed ({1})", remoteEpisode.Release.Title, torrentUrl);
 
                 throw new ReleaseDownloadException(remoteEpisode.Release, "Downloading torrent failed", ex);
             }
@@ -168,8 +201,7 @@ namespace NzbDrone.Core.Download
             }
             catch (FormatException ex)
             {
-                _logger.ErrorException(string.Format("Failed to parse magnetlink for episode '{0}': '{1}'",
-                    remoteEpisode.Release.Title, magnetUrl), ex);
+                _logger.Error(ex, "Failed to parse magnetlink for episode '{0}': '{1}'", remoteEpisode.Release.Title, magnetUrl);
 
                 return null;
             }

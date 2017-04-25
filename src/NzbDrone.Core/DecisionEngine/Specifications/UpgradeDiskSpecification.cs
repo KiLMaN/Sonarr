@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using NLog;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
@@ -16,12 +16,19 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             _logger = logger;
         }
 
-        public RejectionType Type { get { return RejectionType.Permanent; } }
+        public SpecificationPriority Priority => SpecificationPriority.Default;
+        public RejectionType Type => RejectionType.Permanent;
 
         public virtual Decision IsSatisfiedBy(RemoteEpisode subject, SearchCriteriaBase searchCriteria)
         {
             foreach (var file in subject.Episodes.Where(c => c.EpisodeFileId != 0).Select(c => c.EpisodeFile.Value))
             {
+                if(file == null)
+                {
+                    _logger.Debug("File is no longer available, skipping this file.");
+                    continue;
+                }
+
                 _logger.Debug("Comparing file quality with report. Existing file is {0}", file.Quality);
 
                 if (!_qualityUpgradableSpecification.IsUpgradable(subject.Series.Profile, file.Quality, subject.ParsedEpisodeInfo.Quality))

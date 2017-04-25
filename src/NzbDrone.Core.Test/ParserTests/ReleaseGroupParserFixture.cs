@@ -21,7 +21,7 @@ namespace NzbDrone.Core.Test.ParserTests
         [TestCase("Series Title S01E01 Episode Title", null)]
         [TestCase("The Colbert Report - 2014-06-02 - Thomas Piketty.mkv", null)]
         [TestCase("Real Time with Bill Maher S12E17 May 23, 2014.mp4", null)]
-        [TestCase("Reizen Waes - S01E08 - Transistrië, Zuid-Ossetië en Abchazië SDTV.avi", null)]
+        [TestCase("Reizen Waes - S01E08 - Transistri\u00EB, Zuid-Osseti\u00EB en Abchazi\u00EB SDTV.avi", null)]
         [TestCase("Simpsons 10x11 - Wild Barts Cant Be Broken [rl].avi", null)]
         [TestCase("[ www.Torrenting.com ] - Revenge.S03E14.720p.HDTV.X264-DIMENSION", "DIMENSION")]
         [TestCase("Seed S02E09 HDTV x264-2HD [eztv]-[rarbg.com]", "2HD")]
@@ -40,12 +40,24 @@ namespace NzbDrone.Core.Test.ParserTests
             Parser.Parser.ParsePath(path).ReleaseGroup.Should().Be("archivist");
         }
 
+        [TestCase("Marvels.Daredevil.S02E04.720p.WEBRip.x264-SKGTV English", "SKGTV")]
+        [TestCase("Marvels.Daredevil.S02E04.720p.WEBRip.x264-SKGTV_English", "SKGTV")]
+        [TestCase("Marvels.Daredevil.S02E04.720p.WEBRip.x264-SKGTV.English", "SKGTV")]
+        //[TestCase("", "")]
+        public void should_not_include_language_in_release_group(string title, string expected)
+        {
+            Parser.Parser.ParseReleaseGroup(title).Should().Be(expected);
+        }
+
         [TestCase("The.Longest.Mystery.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-RP", "EVL")]
+        [TestCase("The.Longest.Mystery.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-RP-RP", "EVL")]
+        [TestCase("The.Longest.Mystery.S02E04.720p.WEB-DL.AAC2.0.H.264-EVL-Obfuscated", "EVL")]
         [TestCase("Lost.S04E04.720p.BluRay.x264-xHD-NZBgeek", "xHD")]
         [TestCase("Blue.Bloods.S05E11.720p.HDTV.X264-DIMENSION-NZBgeek", "DIMENSION")]
         [TestCase("Lost.S04E04.720p.BluRay.x264-xHD-1", "xHD")]
         [TestCase("Blue.Bloods.S05E11.720p.HDTV.X264-DIMENSION-1", "DIMENSION")]
         [TestCase("saturday.night.live.s40e11.kevin.hart_sia.720p.hdtv.x264-w4f-sample.mkv", "w4f")]
+        [TestCase("The.Sequel.2017.S05E02.1080p.WEB-DL.DD5.1.H264-EVL-Scrambled", "EVL")]
         public void should_not_include_repost_in_release_group(string title, string expected)
         {
             Parser.Parser.ParseReleaseGroup(title).Should().Be(expected);

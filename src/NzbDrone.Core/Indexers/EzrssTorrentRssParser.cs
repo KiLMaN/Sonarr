@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Xml;
+﻿using System.Linq;
 using System.Xml.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Indexers.Exceptions;
@@ -19,15 +16,12 @@ namespace NzbDrone.Core.Indexers
 
         protected override bool PreProcess(IndexerResponse indexerResponse)
         {
-            using (var xmlTextReader = XmlReader.Create(new StringReader(indexerResponse.Content), new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, IgnoreComments = true }))
-            {
-                var document = XDocument.Load(xmlTextReader);
-                var items = GetItems(document).ToList();
+            var document = LoadXmlDocument(indexerResponse);
+            var items = GetItems(document).ToList();
 
-                if (items.Count == 1 && GetTitle(items.First()).Equals("No items exist - Try again later"))
-                {
-                    throw new IndexerException(indexerResponse, "No results were found");
-                }
+            if (items.Count == 1 && GetTitle(items.First()).Equals("No items exist - Try again later"))
+            {
+                throw new IndexerException(indexerResponse, "No results were found");
             }
 
             return base.PreProcess(indexerResponse);

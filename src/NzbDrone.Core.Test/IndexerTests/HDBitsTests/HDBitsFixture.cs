@@ -27,10 +27,11 @@ namespace NzbDrone.Core.Test.IndexerTests.HDBitsTests
             };
         }
 
-        [Test]
-        public void should_parse_recent_feed_from_HDBits()
+        [TestCase("Files/Indexers/HdBits/RecentFeedLongIDs.json")]
+        [TestCase("Files/Indexers/HdBits/RecentFeedStringIDs.json")]
+        public void should_parse_recent_feed_from_HDBits(string fileName)
         {
-            var responseJson = ReadAllText(@"Files/Indexers/HdBits/RecentFeed.json");
+            var responseJson = ReadAllText(fileName);
 
             Mocker.GetMock<IHttpClient>()
                 .Setup(o => o.Execute(It.Is<HttpRequest>(v => v.Method == HttpMethod.POST)))
@@ -48,7 +49,7 @@ namespace NzbDrone.Core.Test.IndexerTests.HDBitsTests
             first.DownloadProtocol.Should().Be(DownloadProtocol.Torrent);
             first.DownloadUrl.Should().Be("https://hdbits.org/download.php?id=257142&passkey=fakekey");
             first.InfoUrl.Should().Be("https://hdbits.org/details.php?id=257142");
-            first.PublishDate.Should().Be(DateTime.Parse("2015-04-04T20:30:46+0000"));
+            first.PublishDate.Should().Be(DateTime.Parse("2015-04-04T20:30:46+0000").ToUniversalTime());
             first.Size.Should().Be(1718009717);
             first.InfoHash.Should().Be("EABC50AEF9F53CEDED84ADF14144D3368E586F3A");
             first.MagnetUrl.Should().BeNullOrEmpty();

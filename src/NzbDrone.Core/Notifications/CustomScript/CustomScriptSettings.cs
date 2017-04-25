@@ -1,5 +1,4 @@
-﻿using System;
-using FluentValidation;
+﻿using FluentValidation;
 using NzbDrone.Core.Annotations;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
@@ -19,7 +18,7 @@ namespace NzbDrone.Core.Notifications.CustomScript
     {
         private static readonly CustomScriptSettingsValidator Validator = new CustomScriptSettingsValidator();
 
-        [FieldDefinition(0, Label = "Path", Type = FieldType.Path)]
+        [FieldDefinition(0, Label = "Path", Type = FieldType.FilePath)]
         public string Path { get; set; }
 
         [FieldDefinition(1, Label = "Arguments", HelpText = "Arguments to pass to the script")]

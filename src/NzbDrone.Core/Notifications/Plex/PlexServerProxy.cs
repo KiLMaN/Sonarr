@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using Newtonsoft.Json.Linq;
@@ -11,6 +10,7 @@ using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Notifications.Plex.Models;
 using NzbDrone.Core.Rest;
 using RestSharp;
+using RestSharp.Authenticators;
 
 namespace NzbDrone.Core.Notifications.Plex
 {
@@ -44,8 +44,24 @@ namespace NzbDrone.Core.Notifications.Plex
             _logger.Trace("Sections response: {0}", response.Content);
             CheckForError(response, settings);
 
-            return Json.Deserialize<PlexMediaContainer>(response.Content)
-                       .Directories
+            if (response.Content.Contains("_children"))
+            {
+                return Json.Deserialize<PlexMediaContainerLegacy>(response.Content)
+                    .Sections
+                    .Where(d => d.Type == "show")
+                    .Select(s => new PlexSection
+                                 {
+                                     Id = s.Id,
+                                     Language = s.Language,
+                                     Locations = s.Locations,
+                                     Type = s.Type
+                                 })
+                    .ToList();
+            }
+
+            return Json.Deserialize<PlexResponse<PlexSectionsContainer>>(response.Content)
+                       .MediaContainer
+                       .Sections
                        .Where(d => d.Type == "show")
                        .ToList();
         }
@@ -81,7 +97,15 @@ namespace NzbDrone.Core.Notifications.Plex
             _logger.Trace("Version response: {0}", response.Content);
             CheckForError(response, settings);
 
-            return Json.Deserialize<PlexIdentity>(response.Content).Version;
+            if (response.Content.Contains("_children"))
+            {
+                return Json.Deserialize<PlexIdentity>(response.Content)
+                           .Version;
+            }
+
+            return Json.Deserialize<PlexResponse<PlexIdentity>>(response.Content)
+                       .MediaContainer
+                       .Version;
         }
 
         public List<PlexPreference> Preferences(PlexServerSettings settings)
@@ -93,7 +117,15 @@ namespace NzbDrone.Core.Notifications.Plex
             _logger.Trace("Preferences response: {0}", response.Content);
             CheckForError(response, settings);
 
-            return Json.Deserialize<PlexPreferences>(response.Content).Preferences;
+            if (response.Content.Contains("_children"))
+            {
+                return Json.Deserialize<PlexPreferencesLegacy>(response.Content)
+                           .Preferences;
+            }
+
+            return Json.Deserialize<PlexResponse<PlexPreferences>>(response.Content)
+                       .MediaContainer
+                       .Preferences;
         }
 
         public int? GetMetadataId(int sectionId, int tvdbId, string language, PlexServerSettings settings)
@@ -107,8 +139,20 @@ namespace NzbDrone.Core.Notifications.Plex
             _logger.Trace("Sections response: {0}", response.Content);
             CheckForError(response, settings);
 
-            var items = Json.Deserialize<PlexSectionResponse>(response.Content)
-                           .Items;
+            List<PlexSectionItem> items;
+
+            if (response.Content.Contains("_children"))
+            {
+                items = Json.Deserialize<PlexSectionResponseLegacy>(response.Content)
+                            .Items;
+            }
+
+            else
+            {
+                items = Json.Deserialize<PlexResponse<PlexSectionResponse>>(response.Content)
+                            .MediaContainer
+                            .Items;
+            }
 
             if (items == null || items.Empty())
             {
@@ -120,8 +164,8 @@ namespace NzbDrone.Core.Notifications.Plex
 
         private string Authenticate(PlexServerSettings settings)
         {
-            var request = GetMyPlexRequest("users/sign_in.json", Method.POST);
-            var client = GetMyPlexClient(settings.Username, settings.Password); 
+            var request = GetPlexTvRequest("users/sign_in.json", Method.POST);
+            var client = GetPlexTvClient(settings.Username, settings.Password); 
 
             var response = client.Execute(request);
 
@@ -133,15 +177,15 @@ namespace NzbDrone.Core.Notifications.Plex
             return user.AuthenticationToken;
         }
 
-        private RestClient GetMyPlexClient(string username, string password)
+        private RestClient GetPlexTvClient(string username, string password)
         {
-            var client = RestClientFactory.BuildClient("https://my.plexapp.com");
+            var client = RestClientFactory.BuildClient("https://plex.tv");
             client.Authenticator = new HttpBasicAuthenticator(username, password);
 
             return client;
         }
 
-        private RestRequest GetMyPlexRequest(string resource, Method method)
+        private RestRequest GetPlexTvRequest(string resource, Method method)
         {
             var request = new RestRequest(resource, method);
             request.AddHeader("X-Plex-Platform", "Windows");
@@ -203,7 +247,15 @@ namespace NzbDrone.Core.Notifications.Plex
                 throw new PlexAuthenticationException("Unauthorized - Username or password is incorrect");
             }
 
-            var error = Json.Deserialize<PlexError>(response.Content);
+            if (response.Content.IsNullOrWhiteSpace())
+            {
+                _logger.Trace("No response body returned, no error detected");
+                return;
+            }
+
+            var error = response.Content.Contains("_children") ?
+                        Json.Deserialize<PlexError>(response.Content) : 
+                        Json.Deserialize<PlexResponse<PlexError>>(response.Content).MediaContainer;
 
             if (error != null && !error.Error.IsNullOrWhiteSpace())
             {

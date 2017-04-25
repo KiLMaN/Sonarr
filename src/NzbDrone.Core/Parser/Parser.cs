@@ -30,6 +30,10 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+)))+)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+                //Anime - [SubGroup] Title Episode Absolute Episode Number ([SubGroup] Series Title Episode 01)
+                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ](?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(?!\d+)))+(?:_|-|\s|\.)*?(?<hash>\[.{8}\])?(?:$|\.)?",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
                 //Anime - [SubGroup] Title Absolute Episode Number + Season+Episode
                 new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<absoluteepisode>\d{2,3}))+(?:_|-|\s|\.)+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)){1,2}(?<episode>\d{2}(?!\d+)))+).*?(?<hash>[(\[]\w{8}[)\]])?(?:$|\.)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -51,7 +55,11 @@ namespace NzbDrone.Core.Parser
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Anime - [SubGroup] Title Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+(?:[-_. ]?(?<absoluteepisode>\d{2,3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])?(?:$|\.mkv)",
+                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+\(?(?:[-_. ]?(?<absoluteepisode>\d{2,3}(?!\d+)))+\)?(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>\[\w{8}\])?(?:$|\.mkv)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Anime - Title Season EpisodeNumber + Absolute Episode Number [SubGroup]
+                new Regex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>(?<!\d+)\d{2}(?!\d+)))+).+?(?:[-_. ]?(?<absoluteepisode>(?<!\d+)\d{3}(?!\d+)))+.+?\[(?<subgroup>.+?)\](?:$|\.mkv)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Anime - Title Absolute Episode Number [SubGroup]
@@ -62,28 +70,60 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{2,3}(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?[-_. ]+.*?(?<hash>\[\w{8}\])(?:$|\.)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+                //Episodes with airdate AND season/episode number, capture season/epsiode only
+                new Regex(@"^(?<title>.+?)?\W*(?<airdate>\d{4}\W+[0-1][0-9]\W+[0-3][0-9])(?!\W+[0-3][0-9])[-_. ](?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:[ex](?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
                 //Episodes with airdate AND season/episode number
-                new Regex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:(e|ep|x)(?<episode>(?<!\d+)(?:\d{1,2})(?!\d+)))",
+                new Regex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:(e|ep|x)(?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Multi-episode Repeated (S01E05 - S01E06, 1x05 - 1x06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:(e|ep|x)){1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
+                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:(e|ep|x)|[-_. ]e){1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
-                //Episodes with a title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc) **
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
+                //Episodes with a title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc)
+                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|(e|ep|x)\W(e|ep|x)|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Episodes with a title, 4 digit season number, Single episodes (S2016E05, etc) & Multi-episode (S2016E05E06, S2016E05-06, S2016E05 E06, etc)
+                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:e|\We|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|e|\We|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Episodes with a title, 4 digit season number, Single episodes (2016x05, etc) & Multi-episode (2016x05x06, 2016x05-06, 2016x05 x06, etc)
+                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:x|\Wx|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|x|\Wx|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Mini-Series with year in title, treated as season 1, episodes are labelled as Part01, Part 01, Part.1
+                new Regex(@"^(?<title>.+?\d{4})(?:\W+(?:(?:Part\W?|e)(?<episode>\d{1,2}(?!\d+)))+)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Mini-Series, treated as season 1, episodes are labelled as Part01, Part 01, Part.1
                 new Regex(@"^(?<title>.+?)(?:\W+(?:(?:Part\W?|(?<!\d+\W+)e)(?<episode>\d{1,2}(?!\d+)))+)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+                //Mini-Series, treated as season 1, episodes are labelled as Part One/Two/Three/...Nine, Part.One, Part_One
+                new Regex(@"^(?<title>.+?)(?:\W+(?:Part[-._ ](?<episode>One|Two|Three|Four|Five|Six|Seven|Eight|Nine)(?>[-._ ])))",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Mini-Series, treated as season 1, episodes are labelled as XofY
+                new Regex(@"^(?<title>.+?)(?:\W+(?:(?<episode>(?<!\d+)\d{1,2}(?!\d+))of\d+)+)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
                 //Supports Season 01 Episode 03
                 new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:[-_\W](?<![()\[]))+(?:\W?Season\W?)(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)+(?:Episode\W)(?:[-_. ]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
-                //Single episode season or episode S1E1 or S1-E1
-                new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?E(?<episode>(?<!\d+)\d{1,2}(?!\d+))",
+                //Multi-episode release with no space between series title and season (S01E11E12)
+                new Regex(@"(?:.*(?:^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{2}(?!\d+))(?:E(?<episode>(?<!\d+)\d{2}(?!\d+)))+",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Multi-episode with single episode numbers (S6.E1-E2, S6.E1E2, S6E1E2, etc)
+                new Regex(@"^(?<title>.+?)[-_. ]S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:[-_. ]?[ex]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Single episode season or episode S1E1 or S1-E1 or S1.Ep1
+                new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?Ep?(?<episode>(?<!\d+)\d{1,2}(?!\d+))",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //3 digit season S010E05
@@ -98,12 +138,20 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:[-_. ]{1,3}ep){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))+",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
+                // Separated season and episode numbers S01 - E01
+                new Regex(@"^(?<title>.+?)(?:_|-|\s|\.)+S(?<season>\d{2}(?!\d+))(\W-\W)E(?<episode>(?<!\d+)\d{2}(?!\d+))(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
                 //Season only releases
                 new Regex(@"^(?<title>.+?)\W(?:S|Season)\W?(?<season>\d{1,2}(?!\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //4 digit season only releases
                 new Regex(@"^(?<title>.+?)\W(?:S|Season)\W?(?<season>\d{4}(?!\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Episodes with a title and season/episode in square brackets
+                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+\[S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>(?<!\d+)\d{2}(?!\d+|i|p)))+\])\W?(?!\\)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Supports 103/113 naming
@@ -128,10 +176,6 @@ namespace NzbDrone.Core.Parser
                 new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>\d{4}(?!\d+|i|p)))+)\W?(?!\\)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
-                //Episodes with a title and season/episode in square brackets
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+\[S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|(e|ep|x)|\W(e|ep|x)|_){1,2}(?<episode>(?<!\d+)\d{2}(?!\d+|i|p)))+\])\W?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
-
                 //Episodes with single digit episode number (S01E1, S01E5E6, etc)
                 new Regex(@"^(?<title>.*?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|(e|ep|x)){1,2}(?<episode>\d{1}))+)+(\W+|_|$)(?!\\)",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -142,6 +186,10 @@ namespace NzbDrone.Core.Parser
 
                 //Anime - Title Absolute Episode Number (e66)
                 new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:_|-|\s|\.)+(?:e|ep)(?<absoluteepisode>\d{2,3}))+.*?(?<hash>\[\w{8}\])?(?:$|\.)",
+                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+
+                //Anime - Title Episode Absolute Episode Number (Series Title Episode 01)
+                new Regex(@"^(?<title>.+?)[-_. ](?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(?!\d+)))+(?:_|-|\s|\.)*?(?<hash>\[.{8}\])?(?:$|\.)?",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 //Anime - Title Absolute Episode Number
@@ -161,7 +209,7 @@ namespace NzbDrone.Core.Parser
             {
                 // Generic match for md5 and mixed-case hashes.
                 new Regex(@"^[0-9a-zA-Z]{32}", RegexOptions.Compiled),
-                
+
                 // Generic match for shorter lower-case hashes.
                 new Regex(@"^[a-z0-9]{24}$", RegexOptions.Compiled),
 
@@ -192,7 +240,7 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex FileExtensionRegex = new Regex(@"\.[a-z0-9]{2,4}$",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex SimpleTitleRegex = new Regex(@"(?:480[ip]|720[ip]|1080[ip]|[xh][\W_]?26[45]|DD\W?5\W1|[<>?*:|]|848x480|1280x720|1920x1080|(8|10)b(it)?)\s*",
+        private static readonly Regex SimpleTitleRegex = new Regex(@"(?:(480|720|1080|2160)[ip]|[xh][\W_]?26[45]|DD\W?5\W1|[<>?*:|]|848x480|1280x720|1920x1080|3840x2160|4096x2160|(8|10)b(it)?)\s*",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex WebsitePrefixRegex = new Regex(@"^\[\s*[a-z]+(\.[a-z]+)+\s*\][- ]*",
@@ -204,19 +252,16 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex SixDigitAirDateRegex = new Regex(@"(?<=[_.-])(?<airdate>(?<!\d)(?<airyear>[1-9]\d{1})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9]))(?=[_.-])",
                                                                         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex CleanReleaseGroupRegex = new Regex(@"^(.*?[-._ ](S\d+E\d+)[-._ ])|-(RP|1|NZBGeek|sample)$",
+        private static readonly Regex CleanReleaseGroupRegex = new Regex(@"^(.*?[-._ ](S\d+E\d+)[-._ ])|(-(RP|1|NZBGeek|Obfuscated|Scrambled|sample))+$",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex CleanTorrentSuffixRegex = new Regex(@"\[(?:ettv|rartv|rarbg|cttv)\]$",
                                                                    RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex ReleaseGroupRegex = new Regex(@"-(?<releasegroup>[a-z0-9]+)\b(?<!WEB-DL|480p|720p|1080p)",
+        private static readonly Regex ReleaseGroupRegex = new Regex(@"-(?<releasegroup>[a-z0-9]+)(?<!WEB-DL|480p|720p|1080p|2160p)(?:\b|[-._ ])",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex AnimeReleaseGroupRegex = new Regex(@"^(?:\[(?<subgroup>(?!\s).+?(?<!\s))\](?:_|-|\s|\.)?)",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex LanguageRegex = new Regex(@"(?:\W|_)(?<italian>\b(?:ita|italian)\b)|(?<german>german\b|videomann)|(?<flemish>flemish)|(?<greek>greek)|(?<french>(?:\W|_)(?:FR|(TRUE)?french)(?:\W|_))|(?<russian>\brus\b)|(?<dutch>nl\W?subs?)",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex YearInTitleRegex = new Regex(@"^(?<title>.+?)(?:\W|_)?(?<year>\d{4})",
@@ -230,6 +275,8 @@ namespace NzbDrone.Core.Parser
 
         private static readonly Regex RequestInfoRegex = new Regex(@"\[.+?\]", RegexOptions.Compiled);
 
+        private static readonly string[] Numbers = new[] { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
+
         public static ParsedEpisodeInfo ParsePath(string path)
         {
             var fileInfo = new FileInfo(path);
@@ -239,19 +286,13 @@ namespace NzbDrone.Core.Parser
             if (result == null)
             {
                 Logger.Debug("Attempting to parse episode info using directory and file names. {0}", fileInfo.Directory.Name);
-                result = ParseTitle(fileInfo.Directory.Name + " " + fileInfo.Name + fileInfo.Extension);
+                result = ParseTitle(fileInfo.Directory.Name + " " + fileInfo.Name);
             }
 
             if (result == null)
             {
                 Logger.Debug("Attempting to parse episode info using directory name. {0}", fileInfo.Directory.Name);
                 result = ParseTitle(fileInfo.Directory.Name + fileInfo.Extension);
-            }
-
-            if (result == null)
-            {
-                Logger.Warn("Unable to parse episode info from path {0}", path);
-                return null;
             }
 
             return result;
@@ -293,11 +334,16 @@ namespace NzbDrone.Core.Parser
                 var sixDigitAirDateMatch = SixDigitAirDateRegex.Match(simpleTitle);
                 if (sixDigitAirDateMatch.Success)
                 {
-                    var fixedDate = string.Format("20{0}.{1}.{2}", sixDigitAirDateMatch.Groups["airyear"].Value,
-                                                                   sixDigitAirDateMatch.Groups["airmonth"].Value,
-                                                                   sixDigitAirDateMatch.Groups["airday"].Value);
+                    var airYear = sixDigitAirDateMatch.Groups["airyear"].Value;
+                    var airMonth = sixDigitAirDateMatch.Groups["airmonth"].Value;
+                    var airDay = sixDigitAirDateMatch.Groups["airday"].Value;
 
-                    simpleTitle = simpleTitle.Replace(sixDigitAirDateMatch.Groups["airdate"].Value, fixedDate);
+                    if (airMonth != "00" || airDay != "00")
+                    {
+                        var fixedDate = string.Format("20{0}.{1}.{2}", airYear, airMonth, airDay);
+
+                        simpleTitle = simpleTitle.Replace(sixDigitAirDateMatch.Groups["airdate"].Value, fixedDate);
+                    }
                 }
 
                 foreach (var regex in ReportTitleRegex)
@@ -319,7 +365,7 @@ namespace NzbDrone.Core.Parser
                                     result.Special = true;
                                 }
 
-                                result.Language = ParseLanguage(title);
+                                result.Language = LanguageParser.ParseLanguage(title);
                                 Logger.Debug("Language parsed: {0}", result.Language);
 
                                 result.Quality = QualityParser.ParseQuality(title);
@@ -346,7 +392,7 @@ namespace NzbDrone.Core.Parser
                         }
                         catch (InvalidDateException ex)
                         {
-                            Logger.DebugException(ex.Message, ex);
+                            Logger.Debug(ex, ex.Message);
                             break;
                         }
                     }
@@ -355,7 +401,7 @@ namespace NzbDrone.Core.Parser
             catch (Exception e)
             {
                 if (!title.ToLower().Contains("password") && !title.ToLower().Contains("yenc"))
-                    Logger.ErrorException("An error has occurred while trying to parse " + title, e);
+                    Logger.Error(e, "An error has occurred while trying to parse {0}", title);
             }
 
             Logger.Debug("Unable to parse {0}", title);
@@ -455,97 +501,6 @@ namespace NzbDrone.Core.Parser
             return title;
         }
 
-        public static Language ParseLanguage(string title)
-        {
-            var lowerTitle = title.ToLower();
-
-            if (lowerTitle.Contains("english"))
-                return Language.English;
-
-           // Fix for files named SUBFRENCH that are not FR !
-           // if (lowerTitle.Contains("french"))
-            //    return Language.French;
-
-            if (lowerTitle.Contains("spanish"))
-                return Language.Spanish;
-
-            if (lowerTitle.Contains("danish"))
-                return Language.Danish;
-
-	   /*if (lowerTitle.Contains("dutch"))
-                return Language.Dutch;
-*/
-            if (lowerTitle.Contains("japanese"))
-                return Language.Japanese;
-
-            if (lowerTitle.Contains("cantonese"))
-                return Language.Cantonese;
-
-            if (lowerTitle.Contains("mandarin"))
-                return Language.Mandarin;
-
-            if (lowerTitle.Contains("korean"))
-                return Language.Korean;
-
-            if (lowerTitle.Contains("russian"))
-                return Language.Russian;
-
-            if (lowerTitle.Contains("polish"))
-                return Language.Polish;
-
-            if (lowerTitle.Contains("vietnamese"))
-                return Language.Vietnamese;
-
-            if (lowerTitle.Contains("swedish"))
-                return Language.Swedish;
-
-            if (lowerTitle.Contains("norwegian"))
-                return Language.Norwegian;
-
-            if (lowerTitle.Contains("nordic"))
-                return Language.Norwegian;
-
-            if (lowerTitle.Contains("finnish"))
-                return Language.Finnish;
-
-            if (lowerTitle.Contains("turkish"))
-                return Language.Turkish;
-
-            if (lowerTitle.Contains("portuguese"))
-                return Language.Portuguese;
-
-            if (lowerTitle.Contains("hungarian"))
-                return Language.Hungarian;
-                
-            var match = LanguageRegex.Match(title);
-
-            if (match.Groups["italian"].Captures.Cast<Capture>().Any())
-                return Language.Italian;
-
-            if (match.Groups["german"].Captures.Cast<Capture>().Any())
-                return Language.German;
-
-            if (match.Groups["flemish"].Captures.Cast<Capture>().Any())
-                return Language.Flemish;
-
-            if (match.Groups["greek"].Captures.Cast<Capture>().Any())
-                return Language.Greek;
-
-            if (match.Groups["french"].Success)
-                return Language.French;
-
-            if (match.Groups["russian"].Success)
-                return Language.Russian;
-
-            if (match.Groups["dutch"].Success)
-                return Language.Dutch;
-
-            if (match.Groups["hungarian"].Success)
-                return Language.Hungarian;
-
-            return Language.English;
-        }
-
         private static SeriesTitleInfo GetSeriesTitleInfo(string title)
         {
             var seriesTitleInfo = new SeriesTitleInfo();
@@ -609,8 +564,8 @@ namespace NzbDrone.Core.Parser
                     //Allows use to return a list of 0 episodes (We can handle that as a full season release)
                     if (episodeCaptures.Any())
                     {
-                        var first = Convert.ToInt32(episodeCaptures.First().Value);
-                        var last = Convert.ToInt32(episodeCaptures.Last().Value);
+                        var first = ParseNumber(episodeCaptures.First().Value);
+                        var last = ParseNumber(episodeCaptures.Last().Value);
 
                         if (first > last)
                         {
@@ -754,6 +709,25 @@ namespace NzbDrone.Core.Parser
             }
 
             return string.Empty;
+        }
+
+        private static int ParseNumber(string value)
+        {
+            int number;
+
+            if (int.TryParse(value, out number))
+            {
+                return number;
+            }
+
+            number = Array.IndexOf(Numbers, value.ToLower());
+
+            if (number != -1)
+            {
+                return number;
+            }
+
+            throw new FormatException(string.Format("{0} isn't a number", value));
         }
     }
 }

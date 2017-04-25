@@ -17,6 +17,8 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
     public class Nzbget : UsenetClientBase<NzbgetSettings>
     {
         private readonly INzbgetProxy _proxy;
+        private readonly string[] _successStatus = { "SUCCESS", "NONE" };
+        private readonly string[] _deleteFailedStatus =  { "HEALTH", "DUPE", "SCAN", "COPY" };
 
         public Nzbget(INzbgetProxy proxy,
                       IHttpClient httpClient,
@@ -32,9 +34,12 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         protected override string AddFromNzbFile(RemoteEpisode remoteEpisode, string filename, byte[] fileContent)
         {
             var category = Settings.TvCategory;
+
             var priority = remoteEpisode.IsRecentEpisode() ? Settings.RecentTvPriority : Settings.OlderTvPriority;
 
-            var response = _proxy.DownloadNzb(fileContent, filename, category, priority, Settings);
+            var addpaused = Settings.AddPaused;
+
+            var response = _proxy.DownloadNzb(fileContent, filename, category, priority, addpaused, Settings);
 
             if (response == null)
             {
@@ -56,7 +61,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             }
             catch (DownloadClientException ex)
             {
-                _logger.ErrorException(ex.Message, ex);
+                _logger.Error(ex);
                 return Enumerable.Empty<DownloadClientItem>();
             }
 
@@ -78,6 +83,8 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
                 queueItem.TotalSize = totalSize;
                 queueItem.Category = item.Category;
                 queueItem.DownloadClient = Definition.Name;
+                queueItem.CanMoveFiles = true;
+                queueItem.CanBeRemoved = true;
 
                 if (globalStatus.DownloadPaused || remainingSize == pausedSize && remainingSize != 0)
                 {
@@ -120,12 +127,11 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             }
             catch (DownloadClientException ex)
             {
-                _logger.ErrorException(ex.Message, ex);
+                _logger.Error(ex);
                 return Enumerable.Empty<DownloadClientItem>();
             }
 
             var historyItems = new List<DownloadClientItem>();
-            var successStatus = new[] { "SUCCESS", "NONE" };
 
             foreach (var item in history)
             {
@@ -138,16 +144,18 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
                 historyItem.TotalSize = MakeInt64(item.FileSizeHi, item.FileSizeLo);
                 historyItem.OutputPath = _remotePathMappingService.RemapRemoteToLocal(Settings.Host, new OsPath(item.DestDir));
                 historyItem.Category = item.Category;
-                historyItem.Message = string.Format("PAR Status: {0} - Unpack Status: {1} - Move Status: {2} - Script Status: {3} - Delete Status: {4} - Mark Status: {5}", item.ParStatus, item.UnpackStatus, item.MoveStatus, item.ScriptStatus, item.DeleteStatus, item.MarkStatus);
+                historyItem.Message = $"PAR Status: {item.ParStatus} - Unpack Status: {item.UnpackStatus} - Move Status: {item.MoveStatus} - Script Status: {item.ScriptStatus} - Delete Status: {item.DeleteStatus} - Mark Status: {item.MarkStatus}";
                 historyItem.Status = DownloadItemStatus.Completed;
                 historyItem.RemainingTime = TimeSpan.Zero;
+                historyItem.CanMoveFiles = true;
+                historyItem.CanBeRemoved = true;
 
                 if (item.DeleteStatus == "MANUAL")
                 {
                     continue;
                 }
 
-                if (!successStatus.Contains(item.ParStatus))
+                if (!_successStatus.Contains(item.ParStatus))
                 {
                     historyItem.Status = DownloadItemStatus.Failed;
                 }
@@ -156,29 +164,31 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
                 {
                     historyItem.Status = DownloadItemStatus.Warning;
                 }
-                else if (!successStatus.Contains(item.UnpackStatus))
+                else if (!_successStatus.Contains(item.UnpackStatus))
                 {
                     historyItem.Status = DownloadItemStatus.Failed;
                 }
 
-                if (!successStatus.Contains(item.MoveStatus))
+                if (!_successStatus.Contains(item.MoveStatus))
                 {
                     historyItem.Status = DownloadItemStatus.Warning;
                 }
 
-                if (!successStatus.Contains(item.ScriptStatus))
+                if (!_successStatus.Contains(item.ScriptStatus))
                 {
                     historyItem.Status = DownloadItemStatus.Failed;
                 }
 
-                if (!successStatus.Contains(item.DeleteStatus) && item.DeleteStatus.IsNotNullOrWhiteSpace())
+                if (!_successStatus.Contains(item.DeleteStatus) && item.DeleteStatus.IsNotNullOrWhiteSpace())
                 {
-                    historyItem.Status = DownloadItemStatus.Warning;
-                }
-
-                if (item.DeleteStatus == "HEALTH")
-                {
-                    historyItem.Status = DownloadItemStatus.Failed;
+                    if (_deleteFailedStatus.Contains(item.DeleteStatus))
+                    {
+                        historyItem.Status = DownloadItemStatus.Failed;
+                    }
+                    else
+                    {
+                        historyItem.Status = DownloadItemStatus.Warning;
+                    }
                 }
 
                 historyItems.Add(historyItem);
@@ -187,13 +197,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             return historyItems;
         }
 
-        public override string Name
-        {
-            get
-            {
-                return "NZBGet";
-            }
-        }
+        public override string Name => "NZBGet";
 
         public override IEnumerable<DownloadClientItem> GetItems()
         {
@@ -265,6 +269,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
         {
             failures.AddIfNotNull(TestConnection());
             failures.AddIfNotNull(TestCategory());
+            failures.AddIfNotNull(TestSettings());
         }
 
         private ValidationFailure TestConnection()
@@ -284,7 +289,7 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
                 {
                     return new ValidationFailure("Username", "Authentication failed");
                 }
-                _logger.ErrorException(ex.Message, ex);
+                _logger.Error(ex);
                 return new ValidationFailure("Host", "Unable to connect to NZBGet");
             }
 
@@ -308,7 +313,24 @@ namespace NzbDrone.Core.Download.Clients.Nzbget
             return null;
         }
 
-        // Javascript doesn't support 64 bit integers natively so json officially doesn't either. 
+        private ValidationFailure TestSettings()
+        {
+            var config = _proxy.GetConfig(Settings);
+
+            var keepHistory = config.GetValueOrDefault("KeepHistory");
+            if (keepHistory == "0")
+            {
+                return new NzbDroneValidationFailure(string.Empty, "NzbGet setting KeepHistory should be greater than 0")
+                {
+                    InfoLink = string.Format("http://{0}:{1}/", Settings.Host, Settings.Port),
+                    DetailedDescription = "NzbGet setting KeepHistory is set to 0. Which prevents Sonarr from seeing completed downloads."
+                };
+            }
+
+            return null;
+        }
+
+        // Javascript doesn't support 64 bit integers natively so json officially doesn't either.
         // NzbGet api thus sends it in two 32 bit chunks. Here we join the two chunks back together.
         // Simplified decimal example: "42" splits into "4" and "2". To join them I shift (<<) the "4" 1 digit to the left = "40". combine it with "2". which becomes "42" again.
         private long MakeInt64(uint high, uint low)

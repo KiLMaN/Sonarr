@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Xml;
 using System.Xml.Linq;
 using NLog;
 using NzbDrone.Common.Cache;
@@ -48,15 +50,32 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             var request = new HttpRequest(url, HttpAccept.Rss);
 
+            HttpResponse response;
+
             try
             {
-                var response = _httpClient.Get(request);
-
-                capabilities = ParseCapabilities(response);
+                response = _httpClient.Get(request);
             }
             catch (Exception ex)
             {
-                _logger.DebugException(string.Format("Failed to get capabilities from {0}: {1}", indexerSettings.Url, ex.Message), ex);
+                _logger.Debug(ex, "Failed to get newznab api capabilities from {0}", indexerSettings.Url);
+                throw;
+            }
+
+            try
+            {
+                capabilities = ParseCapabilities(response);
+            }
+            catch (XmlException ex)
+            {
+                _logger.Debug(ex, "Failed to parse newznab api capabilities for {0}.", indexerSettings.Url);
+
+                ex.WithData(response);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to determine newznab api capabilities for {0}, using the defaults instead till Sonarr restarts.", indexerSettings.Url);
             }
 
             return capabilities;
@@ -67,6 +86,13 @@ namespace NzbDrone.Core.Indexers.Newznab
             var capabilities = new NewznabCapabilities();
 
             var xmlRoot = XDocument.Parse(response.Content).Element("caps");
+
+            var xmlLimits = xmlRoot.Element("limits");
+            if (xmlLimits != null)
+            {
+                capabilities.DefaultPageSize = int.Parse(xmlLimits.Attribute("default").Value);
+                capabilities.MaxPageSize = int.Parse(xmlLimits.Attribute("max").Value);
+            }
 
             var xmlSearching = xmlRoot.Element("searching");
             if (xmlSearching != null)

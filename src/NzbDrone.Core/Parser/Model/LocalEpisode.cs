@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Collections.Generic;
 using NzbDrone.Core.Qualities;
@@ -30,7 +29,9 @@ namespace NzbDrone.Core.Parser.Model
                 return Episodes.Select(c => c.SeasonNumber).Distinct().Single();
             } 
         }
-        
+
+        public bool IsSpecial => SeasonNumber == 0;
+
         public override string ToString()
         {
             return Path;

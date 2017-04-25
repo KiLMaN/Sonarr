@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using LogentriesNLog;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Instrumentation.Sentry;
 
 namespace NzbDrone.Common.Instrumentation
 {
@@ -38,8 +40,7 @@ namespace NzbDrone.Common.Instrumentation
                 RegisterDebugger();
             }
 
-            //Disabling for now - until its fixed or we yank it out
-            //RegisterExceptron();
+            RegisterSentry(updateApp);
 
             if (updateApp)
             {
@@ -48,12 +49,24 @@ namespace NzbDrone.Common.Instrumentation
             }
             else
             {
-                if (inConsole && (OsInfo.IsNotWindows || RuntimeInfoBase.IsUserInteractive))
+                if (inConsole && (OsInfo.IsNotWindows || RuntimeInfo.IsUserInteractive))
                 {
                     RegisterConsole();
                 }
 
                 RegisterAppFile(appFolderInfo);
+            }
+
+            LogManager.ReconfigExistingLoggers();
+        }
+
+        public static void UnRegisterRemoteLoggers()
+        {
+            var sentryRules = LogManager.Configuration.LoggingRules.Where(r => r.Targets.Any(t => t.Name == "sentryTarget"));
+
+            foreach (var rules in sentryRules)
+            {
+                rules.Targets.Clear();
             }
 
             LogManager.ReconfigExistingLoggers();
@@ -72,17 +85,45 @@ namespace NzbDrone.Common.Instrumentation
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
 
+        private static void RegisterSentry(bool updateClient)
+        {
+            string dsn;
+
+            if (updateClient)
+            {
+                dsn = RuntimeInfo.IsProduction
+                    ? "https://b85aa82c65b84b0e99e3b7c281438357:392b5bc007974147a922c5d841c47cf9@sentry.sonarr.tv/11"
+                    : "https://6168f0946aba4e60ac23e469ac08eac5:bd59e8454ccc454ea27a90cff1f814ca@sentry.sonarr.tv/9";
+
+            }
+            else
+            {
+                dsn = RuntimeInfo.IsProduction
+                    ? "https://3e8a38b1a4df4de8b0453a724f5a1139:5a708dd75c724b32ae5128b6a895650f@sentry.sonarr.tv/8"
+                    : "https://4ee3580e01d8407c96a7430fbc953512:5f2d07227a0b4fde99dea07041a3ff93@sentry.sonarr.tv/10";
+            }
+
+            var target = new SentryTarget(dsn)
+            {
+                Name = "sentryTarget",
+                Layout = "${message}"
+            };
+
+            var loggingRule = new LoggingRule("*", updateClient ? LogLevel.Trace : LogLevel.Error, target);
+            LogManager.Configuration.AddTarget("sentryTarget", target);
+            LogManager.Configuration.LoggingRules.Add(loggingRule);
+        }
+
         private static void RegisterDebugger()
         {
             DebuggerTarget target = new DebuggerTarget();
             target.Name = "debuggerLogger";
-            target.Layout = "[${level}] [${threadid}] ${logger}: ${message} ${onexception:inner=${newline}${newline}${exception:format=ToString}${newline}}";
+            target.Layout = "[${level}] [${threadid}] ${logger}: ${message} ${onexception:inner=${newline}${newline}[v${assembly-version}] ${exception:format=ToString}${newline}}";
 
             var loggingRule = new LoggingRule("*", LogLevel.Trace, target);
             LogManager.Configuration.AddTarget("debugger", target);
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
-
 
         private static void RegisterConsole()
         {
@@ -91,7 +132,7 @@ namespace NzbDrone.Common.Instrumentation
             var coloredConsoleTarget = new ColoredConsoleTarget();
 
             coloredConsoleTarget.Name = "consoleLogger";
-            coloredConsoleTarget.Layout = "[${level}] ${logger}: ${message} ${onexception:inner=${newline}${newline}${exception:format=ToString}${newline}}";
+            coloredConsoleTarget.Layout = "[${level}] ${logger}: ${message} ${onexception:inner=${newline}${newline}[v${assembly-version}] ${exception:format=ToString}${newline}}";
 
             var loggingRule = new LoggingRule("*", level, coloredConsoleTarget);
 
@@ -99,28 +140,35 @@ namespace NzbDrone.Common.Instrumentation
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
 
-        const string FILE_LOG_LAYOUT = @"${date:format=yy-M-d HH\:mm\:ss.f}|${level}|${logger}|${message}${onexception:inner=${newline}${newline}${exception:format=ToString}${newline}}";
+        private const string FILE_LOG_LAYOUT = @"${date:format=yy-M-d HH\:mm\:ss.f}|${level}|${logger}|${message}${onexception:inner=${newline}${newline}[v${assembly-version}] ${exception:format=ToString}${newline}}";
 
         private static void RegisterAppFile(IAppFolderInfo appFolderInfo)
         {
+            RegisterAppFile(appFolderInfo, "appFileInfo", "sonarr.txt", 5, LogLevel.Info);
+            RegisterAppFile(appFolderInfo, "appFileDebug", "sonarr.debug.txt", 50, LogLevel.Off);
+            RegisterAppFile(appFolderInfo, "appFileTrace", "sonarr.trace.txt", 50, LogLevel.Off);
+        }
+
+        private static void RegisterAppFile(IAppFolderInfo appFolderInfo, string name, string fileName, int maxArchiveFiles, LogLevel minLogLevel)
+        {
             var fileTarget = new NzbDroneFileTarget();
 
-            fileTarget.Name = "rollingFileLogger";
-            fileTarget.FileName = Path.Combine(appFolderInfo.GetLogFolder(), "nzbdrone.txt");
+            fileTarget.Name = name;
+            fileTarget.FileName = Path.Combine(appFolderInfo.GetLogFolder(), fileName);
             fileTarget.AutoFlush = true;
             fileTarget.KeepFileOpen = false;
             fileTarget.ConcurrentWrites = false;
             fileTarget.ConcurrentWriteAttemptDelay = 50;
             fileTarget.ConcurrentWriteAttempts = 10;
             fileTarget.ArchiveAboveSize = 1024000;
-            fileTarget.MaxArchiveFiles = 5;
+            fileTarget.MaxArchiveFiles = maxArchiveFiles;
             fileTarget.EnableFileDelete = true;
             fileTarget.ArchiveNumbering = ArchiveNumberingMode.Rolling;
             fileTarget.Layout = FILE_LOG_LAYOUT;
 
-            var loggingRule = new LoggingRule("*", LogLevel.Trace, fileTarget);
+            var loggingRule = new LoggingRule("*", minLogLevel, fileTarget);
 
-            LogManager.Configuration.AddTarget("appfile", fileTarget);
+            LogManager.Configuration.AddTarget(name, fileTarget);
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
 
@@ -142,16 +190,6 @@ namespace NzbDrone.Common.Instrumentation
             LogManager.Configuration.AddTarget("updateFile", fileTarget);
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
-
-        private static void RegisterExceptron()
-        {
-            var exceptronTarget = new ExceptronTarget();
-            var rule = new LoggingRule("*", LogLevel.Warn, exceptronTarget);
-
-            LogManager.Configuration.AddTarget("ExceptronTarget", exceptronTarget);
-            LogManager.Configuration.LoggingRules.Add(rule);
-        }
-
 
         public static Logger GetLogger(Type obj)
         {

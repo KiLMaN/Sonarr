@@ -10,6 +10,7 @@ src/**/[Oo]bj/
 *.suo
 *.user
 *.sln.docstates
+.vs/
 
 # Build results
 *_i.c
@@ -40,6 +41,9 @@ src/**/[Oo]bj/
 # ReSharper is a .NET coding add-in
 _ReSharper*
 _dotCover*
+
+# DevExpress CodeRush
+src/.cr/
 
 # NCrunch
 *.ncrunch*
@@ -128,3 +132,6 @@ output/*
 ._*
 
 _start
+_temp_*/**/*
+
+src/.idea/

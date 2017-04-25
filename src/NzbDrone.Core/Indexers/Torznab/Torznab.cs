@@ -16,16 +16,10 @@ namespace NzbDrone.Core.Indexers.Torznab
     {
         private readonly INewznabCapabilitiesProvider _capabilitiesProvider;
 
-        public override string Name
-        {
-            get
-            {
-                return "Torznab";
-            }
-        }
+        public override string Name => "Torznab";
 
-        public override DownloadProtocol Protocol { get { return DownloadProtocol.Torrent; } }
-        public override int PageSize { get { return 100; } }
+        public override DownloadProtocol Protocol => DownloadProtocol.Torrent;
+        public override int PageSize => _capabilitiesProvider.GetCapabilities(Settings).DefaultPageSize;
 
         public override IIndexerRequestGenerator GetRequestGenerator()
         {
@@ -111,12 +105,10 @@ namespace NzbDrone.Core.Indexers.Torznab
             }
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to connect to indexer: " + ex.Message, ex);
+                _logger.Warn(ex, "Unable to connect to indexer: " + ex.Message);
 
                 return new ValidationFailure(string.Empty, "Unable to connect to indexer, check the log for more details");
             }
-
-            return null;
         }
     }
 }
