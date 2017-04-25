@@ -34,7 +34,15 @@ namespace NzbDrone.Update.UpdateEngine
             _logger.Info("Backing up appdata (database/config)");
             var backupFolderAppData = _appFolderInfo.GetUpdateBackUpAppDataFolder();
 
-            _diskProvider.CreateFolder(backupFolderAppData);
+            if (_diskProvider.FolderExists(backupFolderAppData))
+            {
+                _diskProvider.EmptyFolder(backupFolderAppData);
+            }
+            else
+            {
+                _diskProvider.CreateFolder(backupFolderAppData);
+            }
+
 
             try
             {
@@ -43,7 +51,7 @@ namespace NzbDrone.Update.UpdateEngine
             }
             catch (Exception e)
             {
-                _logger.ErrorException("Couldn't create a data backup", e);
+                _logger.Error(e, "Couldn't create a data backup");
             }
         }
     }

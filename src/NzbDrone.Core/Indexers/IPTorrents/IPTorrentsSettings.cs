@@ -1,4 +1,3 @@
-using System;
 using System.Text.RegularExpressions;
 using FluentValidation;
 using NzbDrone.Common.Extensions;
@@ -16,8 +15,8 @@ namespace NzbDrone.Core.Indexers.IPTorrents
 
             RuleFor(c => c.Url).Matches(@"/rss\?.+$");
 
-            RuleFor(c => c.Url).Matches(@"/rss\?.+;download$")
-                .WithMessage("Use Direct Download Url")
+            RuleFor(c => c.Url).Matches(@"/rss\?.+;download(?:;|$)")
+                .WithMessage("Use Direct Download Url (;download)")
                 .When(v => v.Url.IsNotNullOrWhiteSpace() && Regex.IsMatch(v.Url, @"/rss\?.+$"));
         }
     }

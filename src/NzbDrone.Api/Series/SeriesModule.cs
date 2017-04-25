@@ -10,11 +10,10 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.SeriesStats;
 using NzbDrone.Core.Tv;
-using NzbDrone.Api.Validation;
-using NzbDrone.Api.Mapping;
 using NzbDrone.Core.Tv.Events;
 using NzbDrone.Core.Validation.Paths;
 using NzbDrone.Core.DataAugmentation.Scene;
+using NzbDrone.Core.Validation;
 using NzbDrone.SignalR;
 
 namespace NzbDrone.Api.Series
@@ -30,12 +29,14 @@ namespace NzbDrone.Api.Series
 
     {
         private readonly ISeriesService _seriesService;
+        private readonly IAddSeriesService _addSeriesService;
         private readonly ISeriesStatisticsService _seriesStatisticsService;
         private readonly ISceneMappingService _sceneMappingService;
         private readonly IMapCoversToLocal _coverMapper;
 
         public SeriesModule(IBroadcastSignalRMessage signalRBroadcaster,
                             ISeriesService seriesService,
+                            IAddSeriesService addSeriesService,
                             ISeriesStatisticsService seriesStatisticsService,
                             ISceneMappingService sceneMappingService,
                             IMapCoversToLocal coverMapper,
@@ -43,11 +44,13 @@ namespace NzbDrone.Api.Series
                             SeriesPathValidator seriesPathValidator,
                             SeriesExistsValidator seriesExistsValidator,
                             DroneFactoryValidator droneFactoryValidator,
-                            SeriesAncestorValidator seriesAncestorValidator
+                            SeriesAncestorValidator seriesAncestorValidator,
+                            ProfileExistsValidator profileExistsValidator
             )
             : base(signalRBroadcaster)
         {
             _seriesService = seriesService;
+            _addSeriesService = addSeriesService;
             _seriesStatisticsService = seriesStatisticsService;
             _sceneMappingService = sceneMappingService;
 
@@ -59,7 +62,7 @@ namespace NzbDrone.Api.Series
             UpdateResource = UpdateSeries;
             DeleteResource = DeleteSeries;
 
-            SharedValidator.RuleFor(s => s.ProfileId).ValidId();
+            Validation.RuleBuilderExtensions.ValidId(SharedValidator.RuleFor(s => s.ProfileId));
 
             SharedValidator.RuleFor(s => s.Path)
                            .Cascade(CascadeMode.StopOnFirstFailure)
@@ -70,9 +73,10 @@ namespace NzbDrone.Api.Series
                            .SetValidator(seriesAncestorValidator)
                            .When(s => !s.Path.IsNullOrWhiteSpace());
 
+            SharedValidator.RuleFor(s => s.ProfileId).SetValidator(profileExistsValidator);
+
             PostValidator.RuleFor(s => s.Path).IsValidPath().When(s => s.RootFolderPath.IsNullOrWhiteSpace());
             PostValidator.RuleFor(s => s.RootFolderPath).IsValidPath().When(s => s.Path.IsNullOrWhiteSpace());
-            PostValidator.RuleFor(s => s.Title).NotEmpty();
             PostValidator.RuleFor(s => s.TvdbId).GreaterThan(0).SetValidator(seriesExistsValidator);
 
             PutValidator.RuleFor(s => s.Path).IsValidPath();
@@ -81,14 +85,14 @@ namespace NzbDrone.Api.Series
         private SeriesResource GetSeries(int id)
         {
             var series = _seriesService.GetSeries(id);
-            return GetSeriesResource(series);
+            return MapToResource(series);
         }
 
-        private SeriesResource GetSeriesResource(Core.Tv.Series series)
+        private SeriesResource MapToResource(Core.Tv.Series series)
         {
             if (series == null) return null;
 
-            var resource = series.InjectTo<SeriesResource>();
+            var resource = series.ToResource();
             MapCoversToLocal(resource);
             FetchAndLinkSeriesStatistics(resource);
             PopulateAlternateTitles(resource);
@@ -99,7 +103,7 @@ namespace NzbDrone.Api.Series
         private List<SeriesResource> AllSeries()
         {
             var seriesStats = _seriesStatisticsService.SeriesStatistics();
-            var seriesResources = ToListResource(_seriesService.GetAllSeries);
+            var seriesResources = _seriesService.GetAllSeries().ToResource();
 
             MapCoversToLocal(seriesResources.ToArray());
             LinkSeriesStatistics(seriesResources, seriesStats);
@@ -110,14 +114,16 @@ namespace NzbDrone.Api.Series
 
         private int AddSeries(SeriesResource seriesResource)
         {
-            var series = _seriesService.AddSeries(seriesResource.InjectTo<Core.Tv.Series>());
+            var model = seriesResource.ToModel();
 
-            return series.Id;
+            return _addSeriesService.AddSeries(model).Id;
         }
 
         private void UpdateSeries(SeriesResource seriesResource)
         {
-            GetNewId<Core.Tv.Series>(_seriesService.UpdateSeries, seriesResource);
+            var model = seriesResource.ToModel(_seriesService.GetSeries(seriesResource.Id));
+
+            _seriesService.UpdateSeries(model);
 
             BroadcastResourceChange(ModelAction.Updated, seriesResource);
         }
@@ -150,9 +156,11 @@ namespace NzbDrone.Api.Series
 
         private void LinkSeriesStatistics(List<SeriesResource> resources, List<SeriesStatistics> seriesStatistics)
         {
+            var dictSeriesStats = seriesStatistics.ToDictionary(v => v.SeriesId);
+
             foreach (var series in resources)
             {
-                var stats = seriesStatistics.SingleOrDefault(ss => ss.SeriesId == series.Id);
+                var stats = dictSeriesStats.GetValueOrDefault(series.Id);
                 if (stats == null) continue;
 
                 LinkSeriesStatistics(series, stats);
@@ -170,9 +178,11 @@ namespace NzbDrone.Api.Series
 
             if (seriesStatistics.SeasonStatistics != null)
             {
-               foreach (var season in resource.Seasons)
+                var dictSeasonStats = seriesStatistics.SeasonStatistics.ToDictionary(v => v.SeasonNumber);
+
+                foreach (var season in resource.Seasons)
                 {
-                    season.Statistics = seriesStatistics.SeasonStatistics.SingleOrDefault(s => s.SeasonNumber == season.SeasonNumber).InjectTo<SeasonStatisticsResource>();
+                    season.Statistics = dictSeasonStats.GetValueOrDefault(season.SeasonNumber).ToResource();
                 }
             }
         }
@@ -191,7 +201,7 @@ namespace NzbDrone.Api.Series
 
             if (mappings == null) return;
 
-            resource.AlternateTitles = mappings.InjectTo<List<AlternateTitleResource>>();
+            resource.AlternateTitles = mappings.Select(v => new AlternateTitleResource { Title = v.Title, SeasonNumber = v.SeasonNumber, SceneSeasonNumber = v.SceneSeasonNumber }).ToList();
         }
 
         public void Handle(EpisodeImportedEvent message)
@@ -218,7 +228,7 @@ namespace NzbDrone.Api.Series
 
         public void Handle(SeriesDeletedEvent message)
         {
-            BroadcastResourceChange(ModelAction.Deleted, message.Series.InjectTo<SeriesResource>());
+            BroadcastResourceChange(ModelAction.Deleted, message.Series.ToResource());
         }
 
         public void Handle(SeriesRenamedEvent message)

@@ -8,19 +8,20 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Update;
 using NzbDrone.Core.Validation;
 using NzbDrone.Core.Validation.Paths;
-using Omu.ValueInjecter;
 
 namespace NzbDrone.Api.Config
 {
     public class HostConfigModule : NzbDroneRestModule<HostConfigResource>
     {
         private readonly IConfigFileProvider _configFileProvider;
+        private readonly IConfigService _configService;
         private readonly IUserService _userService;
 
-        public HostConfigModule(IConfigFileProvider configFileProvider, IUserService userService)
+        public HostConfigModule(IConfigFileProvider configFileProvider, IConfigService configService, IUserService userService)
             : base("/config/host")
         {
             _configFileProvider = configFileProvider;
+            _configService = configService;
             _userService = userService;
 
             GetResourceSingle = GetHostConfig;
@@ -48,12 +49,10 @@ namespace NzbDrone.Api.Config
 
         private HostConfigResource GetHostConfig()
         {
-            var resource = new HostConfigResource();
-            resource.InjectFrom(_configFileProvider);
+            var resource = _configFileProvider.ToResource(_configService);
             resource.Id = 1;
 
             var user = _userService.FindUser();
-
             if (user != null)
             {
                 resource.Username = user.Username;
@@ -75,6 +74,7 @@ namespace NzbDrone.Api.Config
                                      .ToDictionary(prop => prop.Name, prop => prop.GetValue(resource, null));
 
             _configFileProvider.SaveConfigDictionary(dictionary);
+            _configService.SaveConfigDictionary(dictionary);
 
             if (resource.Username.IsNotNullOrWhiteSpace() && resource.Password.IsNotNullOrWhiteSpace())
             {

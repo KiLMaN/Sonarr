@@ -63,6 +63,11 @@ var Collection = PageableCollection.extend({
         'monitored'  : [
             'monitored',
             true
+        ],
+        'missing'  : [
+            null,
+            null,
+            function(model) { return model.get('episodeCount') !== model.get('episodeFileCount'); }
         ]
     },
 

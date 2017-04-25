@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
@@ -71,7 +70,7 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
 
             var page = results.GetAllTiers().First().First();
 
-            page.Url.Query.Should().Contain("&cat=1,2,3,4&");
+            page.Url.FullUri.Should().Contain("&cat=1,2,3,4&");
         }
 
         [Test]
@@ -83,7 +82,7 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
 
             var page = results.GetAllTiers().First().First();
 
-            page.Url.Query.Should().Contain("&cat=3,4&");
+            page.Url.FullUri.Should().Contain("&cat=3,4&");
         }
         
         [Test]
@@ -95,7 +94,7 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
 
             var page = results.GetAllTiers().First().First();
 
-            page.Url.Query.Should().Contain("?t=search&");
+            page.Url.FullUri.Should().Contain("?t=search&");
         }
 
         [Test]
@@ -107,9 +106,9 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
 
             var pages = results.GetAllTiers().First().Take(3).ToList();
 
-            pages[0].Url.Query.Should().Contain("&offset=0&");
-            pages[1].Url.Query.Should().Contain("&offset=100&");
-            pages[2].Url.Query.Should().Contain("&offset=200&");
+            pages[0].Url.FullUri.Should().Contain("&offset=0&");
+            pages[1].Url.FullUri.Should().Contain("&offset=100&");
+            pages[2].Url.FullUri.Should().Contain("&offset=200&");
         }
 
         [Test]
@@ -228,6 +227,21 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             var results = Subject.GetSearchRequests(_singleEpisodeSearchCriteria);
             results.Tiers.Should().Be(1);
             results.GetTier(0).Should().HaveCount(1);
+
+            var page = results.GetTier(0).First().First();
+
+            page.Url.Query.Should().Contain("q=");
+        }
+
+        [Test]
+        public void should_not_use_aggregrated_id_search_if_no_ids_are_known()
+        {
+            _capabilities.SupportedTvSearchParameters = new[] { "q", "rid", "season", "ep" };
+            _capabilities.SupportsAggregateIdSearch = true; // Turns true if indexer supplies supportedParams.
+
+            _singleEpisodeSearchCriteria.Series.TvRageId = 0;
+
+            var results = Subject.GetSearchRequests(_singleEpisodeSearchCriteria);
 
             var page = results.GetTier(0).First().First();
 

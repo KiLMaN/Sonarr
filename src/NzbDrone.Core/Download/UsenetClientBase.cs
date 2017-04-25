@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
@@ -28,13 +27,7 @@ namespace NzbDrone.Core.Download
             _httpClient = httpClient;
         }
         
-        public override DownloadProtocol Protocol
-        {
-            get
-            {
-                return DownloadProtocol.Usenet;
-            }
-        }
+        public override DownloadProtocol Protocol => DownloadProtocol.Usenet;
 
         protected abstract string AddFromNzbFile(RemoteEpisode remoteEpisode, string filename, byte[] fileContent);
 
@@ -53,15 +46,20 @@ namespace NzbDrone.Core.Download
             }
             catch (HttpException ex)
             {
-                _logger.ErrorException(string.Format("Downloading nzb for episode '{0}' failed ({1})",
-                    remoteEpisode.Release.Title, url), ex);
+                if ((int)ex.Response.StatusCode == 429)
+                {
+                    _logger.Error("API Grab Limit reached for {0}", url);
+                }
+                else
+                {
+                    _logger.Error(ex, "Downloading nzb for episode '{0}' failed ({1})", remoteEpisode.Release.Title, url);
+                }
 
                 throw new ReleaseDownloadException(remoteEpisode.Release, "Downloading nzb failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.ErrorException(string.Format("Downloading nzb for episode '{0}' failed ({1})",
-                    remoteEpisode.Release.Title, url), ex);
+                _logger.Error(ex, "Downloading nzb for episode '{0}' failed ({1})", remoteEpisode.Release.Title, url);
 
                 throw new ReleaseDownloadException(remoteEpisode.Release, "Downloading nzb failed", ex);
             }

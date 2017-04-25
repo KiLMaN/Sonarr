@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
-using NzbDrone.Common.Exceptron;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
@@ -135,7 +134,7 @@ namespace NzbDrone.Core.MediaFiles
 
                     catch (Exception ex)
                     {
-                        _logger.WarnException("Unable to set date of file [" + filePath + "]", ex);
+                        _logger.Warn(ex, "Unable to set date of file [" + filePath + "]");
                     }
                 }
             }
@@ -164,8 +163,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 catch (Exception ex)
                 {
-                    ex.ExceptronIgnoreOnMono();
-                    _logger.WarnException("Unable to set date of file [" + filePath + "]", ex);
+                    _logger.Warn(ex, "Unable to set date of file [" + filePath + "]");
                 }
             }
 

@@ -14,6 +14,8 @@ buildSources:
 	@$(XBUILD) /p:Configuration=$(CONF) src/NzbDrone.sln
 
 buildUI:
+	@echo "Updating NPM"
+	@npm install
 	@echo "Building UI"
 	@gulp build
 

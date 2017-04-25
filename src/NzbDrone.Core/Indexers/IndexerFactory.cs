@@ -9,14 +9,13 @@ namespace NzbDrone.Core.Indexers
 {
     public interface IIndexerFactory : IProviderFactory<IIndexer, IndexerDefinition>
     {
-        List<IIndexer> RssEnabled();
-        List<IIndexer> SearchEnabled();
+        List<IIndexer> RssEnabled(bool filterBlockedIndexers = true);
+        List<IIndexer> SearchEnabled(bool filterBlockedIndexers = true);
     }
 
     public class IndexerFactory : ProviderFactory<IIndexer, IndexerDefinition>, IIndexerFactory
     {
         private readonly IIndexerStatusService _indexerStatusService;
-        private readonly IIndexerRepository _providerRepository;
         private readonly Logger _logger;
 
         public IndexerFactory(IIndexerStatusService indexerStatusService,
@@ -28,7 +27,6 @@ namespace NzbDrone.Core.Indexers
             : base(providerRepository, providers, container, eventAggregator, logger)
         {
             _indexerStatusService = indexerStatusService;
-            _providerRepository = providerRepository;
             _logger = logger;
         }
 
@@ -37,33 +35,37 @@ namespace NzbDrone.Core.Indexers
             return base.Active().Where(c => c.Enable).ToList();
         }
 
-        public override IndexerDefinition GetProviderCharacteristics(IIndexer provider, IndexerDefinition definition)
+        public override void SetProviderCharacteristics(IIndexer provider, IndexerDefinition definition)
         {
-            definition = base.GetProviderCharacteristics(provider, definition);
+            base.SetProviderCharacteristics(provider, definition);
 
             definition.Protocol = provider.Protocol;
             definition.SupportsRss = provider.SupportsRss;
             definition.SupportsSearch = provider.SupportsSearch;
-
-            return definition;
         }
 
-        public List<IIndexer> RssEnabled()
+        public List<IIndexer> RssEnabled(bool filterBlockedIndexers = true)
         {
             var enabledIndexers = GetAvailableProviders().Where(n => ((IndexerDefinition)n.Definition).EnableRss);
 
-            var indexers = FilterBlockedIndexers(enabledIndexers);
+            if (filterBlockedIndexers)
+            {
+                return FilterBlockedIndexers(enabledIndexers).ToList();
+            }
 
-            return indexers.ToList();
+            return enabledIndexers.ToList();
         }
 
-        public List<IIndexer> SearchEnabled()
+        public List<IIndexer> SearchEnabled(bool filterBlockedIndexers = true)
         {
             var enabledIndexers = GetAvailableProviders().Where(n => ((IndexerDefinition)n.Definition).EnableSearch);
 
-            var indexers = FilterBlockedIndexers(enabledIndexers);
+            if (filterBlockedIndexers)
+            {
+                return FilterBlockedIndexers(enabledIndexers).ToList();
+            }
 
-            return indexers.ToList();
+            return enabledIndexers.ToList();
         }
 
         private IEnumerable<IIndexer> FilterBlockedIndexers(IEnumerable<IIndexer> indexers)
@@ -75,7 +77,7 @@ namespace NzbDrone.Core.Indexers
                 IndexerStatus blockedIndexerStatus;
                 if (blockedIndexers.TryGetValue(indexer.Definition.Id, out blockedIndexerStatus))
                 {
-                    _logger.Debug("Temporarily ignoring indexer {0} till {1} due to recent failures.", indexer.Definition.Name, blockedIndexerStatus.DisabledTill.Value);
+                    _logger.Debug("Temporarily ignoring indexer {0} till {1} due to recent failures.", indexer.Definition.Name, blockedIndexerStatus.DisabledTill.Value.ToLocalTime());
                     continue;
                 }
 

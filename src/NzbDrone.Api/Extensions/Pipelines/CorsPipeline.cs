@@ -7,6 +7,8 @@ namespace NzbDrone.Api.Extensions.Pipelines
 {
     public class CorsPipeline : IRegisterNancyPipeline
     {
+        public int Order => 0;
+
         public void Register(IPipelines pipelines)
         {
             pipelines.AfterRequest.AddItemToEndOfPipeline((Action<NancyContext>) Handle);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using NLog;
 using NzbDrone.Common;
@@ -38,22 +38,22 @@ namespace NzbDrone.Core.Messaging.Commands
                 {
                     try
                     {
-                        ExecuteCommand((dynamic) command.Body, command);
+                        ExecuteCommand((dynamic)command.Body, command);
                     }
                     catch (Exception ex)
                     {
-                        _logger.ErrorException("Error occurred while executing task " + command.Name, ex);
+                        _logger.Error(ex, "Error occurred while executing task {0}", command.Name);
                     }
                 }
             }
             catch (ThreadAbortException ex)
             {
-                _logger.ErrorException("Thread aborted: " + ex.Message, ex);
+                _logger.Error(ex);
                 Thread.ResetAbort();
             }
             catch (Exception ex)
             {
-                _logger.Error("Unknown error in thread: " + ex.Message, ex);
+                _logger.Error(ex, "Unknown error in thread");
             }
         }
 
@@ -76,7 +76,7 @@ namespace NzbDrone.Core.Messaging.Commands
 
                 handler.Execute(command);
 
-                _commandQueueManager.Complete(commandModel, command.CompletionMessage);
+                _commandQueueManager.Complete(commandModel, command.CompletionMessage ?? commandModel.Message);
             }
             catch (CommandFailedException ex)
             {
@@ -104,7 +104,7 @@ namespace NzbDrone.Core.Messaging.Commands
 
             _logger.Trace("{0} <- {1} [{2}]", command.GetType().Name, handler.GetType().Name, commandModel.Duration.ToString());
         }
-        
+
         private void BroadcastCommandUpdate(CommandModel command)
         {
             if (command.Body.SendUpdatesToClient)

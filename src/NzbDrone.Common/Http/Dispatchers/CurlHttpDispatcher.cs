@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -11,7 +12,7 @@ using CurlSharp;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Common.Instrumentation;
+using NzbDrone.Common.Http.Proxy;
 
 namespace NzbDrone.Common.Http.Dispatchers
 {
@@ -19,9 +20,33 @@ namespace NzbDrone.Common.Http.Dispatchers
     {
         private static readonly Regex ExpiryDate = new Regex(@"(expires=)([^;]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Logger _logger = NzbDroneLogger.GetLogger(typeof(CurlHttpDispatcher));
+        private readonly IHttpProxySettingsProvider _proxySettingsProvider;
+        private readonly IUserAgentBuilder _userAgentBuilder;
+        private readonly Logger _logger;
 
-        public static bool CheckAvailability()
+        private const string _caBundleFileName = "curl-ca-bundle.crt";
+        private static readonly string _caBundleFilePath;
+
+        static CurlHttpDispatcher()
+        {
+            if (Assembly.GetExecutingAssembly().Location.IsNotNullOrWhiteSpace())
+            {
+                _caBundleFilePath = Path.Combine(Assembly.GetExecutingAssembly().Location, "..", _caBundleFileName);
+            }
+            else
+            {
+                _caBundleFilePath = _caBundleFileName;
+            }
+        }
+        
+        public CurlHttpDispatcher(IHttpProxySettingsProvider proxySettingsProvider, IUserAgentBuilder userAgentBuilder, Logger logger)
+        {
+            _proxySettingsProvider = proxySettingsProvider;
+            _userAgentBuilder = userAgentBuilder;
+            _logger = logger;
+        }
+
+        public bool CheckAvailability()
         {
             try
             {
@@ -29,7 +54,7 @@ namespace NzbDrone.Common.Http.Dispatchers
             }
             catch (Exception ex)
             {
-                _logger.TraceException("Initializing curl failed", ex);
+                _logger.Trace(ex, "Initializing curl failed");
                 return false;
             }
         }
@@ -39,11 +64,6 @@ namespace NzbDrone.Common.Http.Dispatchers
             if (!CheckAvailability())
             {
                 throw new ApplicationException("Curl failed to initialize.");
-            }
-
-            if (request.NetworkCredential != null)
-            {
-                throw new NotImplementedException("Credentials not supported for curl dispatcher.");
             }
 
             lock (CurlGlobalHandle.Instance)
@@ -64,8 +84,11 @@ namespace NzbDrone.Common.Http.Dispatchers
                         headerStream.Write(b, 0, s * n);
                         return s * n;
                     };
-                    
-                    curlEasy.Url = request.Url.AbsoluteUri;
+
+                    AddProxy(curlEasy, request);
+
+                    curlEasy.Url = request.Url.FullUri;
+
                     switch (request.Method)
                     {
                         case HttpMethod.GET:
@@ -81,26 +104,30 @@ namespace NzbDrone.Common.Http.Dispatchers
                             break;
 
                         default:
-                            throw new NotSupportedException(string.Format("HttpCurl method {0} not supported", request.Method));
+                            throw new NotSupportedException($"HttpCurl method {request.Method} not supported");
                     }
-                    curlEasy.UserAgent = UserAgentBuilder.UserAgent;
+                    curlEasy.UserAgent = _userAgentBuilder.GetUserAgent(request.UseSimplifiedUserAgent);
                     curlEasy.FollowLocation = request.AllowAutoRedirect;
+
+                    if (request.RequestTimeout != TimeSpan.Zero)
+                    {
+                        curlEasy.Timeout = (int)Math.Ceiling(request.RequestTimeout.TotalSeconds);
+                    }
 
                     if (OsInfo.IsWindows)
                     {
-                        curlEasy.CaInfo = "curl-ca-bundle.crt";
+                        curlEasy.CaInfo = _caBundleFilePath;
                     }
 
                     if (cookies != null)
                     {
-                        curlEasy.Cookie = cookies.GetCookieHeader(request.Url);
+                        curlEasy.Cookie = cookies.GetCookieHeader((Uri)request.Url);
                     }
 
-                    if (!request.Body.IsNullOrWhiteSpace())
+                    if (request.ContentData != null)
                     {
-                        // TODO: This might not go well with encoding.
-                        curlEasy.PostFieldSize = request.Body.Length;
-                        curlEasy.SetOpt(CurlOption.CopyPostFields, request.Body);
+                        curlEasy.PostFieldSize = request.ContentData.Length;
+                        curlEasy.SetOpt(CurlOption.CopyPostFields, new string(Array.ConvertAll(request.ContentData, v => (char)v)));
                     }
 
                     // Yes, we have to keep a ref to the object to prevent corrupting the unmanaged state
@@ -112,7 +139,15 @@ namespace NzbDrone.Common.Http.Dispatchers
 
                         if (result != CurlCode.Ok)
                         {
-                            throw new WebException(string.Format("Curl Error {0} for Url {1}", result, curlEasy.Url));
+                            switch (result)
+                            {
+                                case CurlCode.SslCaCert:
+                                case (CurlCode)77:
+                                    throw new WebException(string.Format("Curl Error {0} for Url {1}, issues with your operating system SSL Root Certificate Bundle (ca-bundle).", result, curlEasy.Url));
+                                default:
+                                    throw new WebException(string.Format("Curl Error {0} for Url {1}", result, curlEasy.Url));
+
+                            }
                         }
                     }
 
@@ -123,6 +158,34 @@ namespace NzbDrone.Common.Http.Dispatchers
 
                     return new HttpResponse(request, httpHeader, responseData, (HttpStatusCode)curlEasy.ResponseCode);
                 }
+            }
+        }
+
+        private void AddProxy(CurlEasy curlEasy, HttpRequest request)
+        {
+            var proxySettings = _proxySettingsProvider.GetProxySettings(request);
+            if (proxySettings != null)
+
+            {
+                switch (proxySettings.Type)
+                {
+                    case ProxyType.Http:
+                        curlEasy.SetOpt(CurlOption.ProxyType, CurlProxyType.Http);
+                        curlEasy.SetOpt(CurlOption.ProxyAuth, CurlHttpAuth.Basic);
+                        curlEasy.SetOpt(CurlOption.ProxyUserPwd, proxySettings.Username + ":" + proxySettings.Password.ToString());
+                        break;
+                    case ProxyType.Socks4:
+                        curlEasy.SetOpt(CurlOption.ProxyType, CurlProxyType.Socks4);
+                        curlEasy.SetOpt(CurlOption.ProxyUsername, proxySettings.Username);
+                        curlEasy.SetOpt(CurlOption.ProxyPassword, proxySettings.Password);
+                        break;
+                    case ProxyType.Socks5:
+                        curlEasy.SetOpt(CurlOption.ProxyType, CurlProxyType.Socks5);
+                        curlEasy.SetOpt(CurlOption.ProxyUsername, proxySettings.Username);
+                        curlEasy.SetOpt(CurlOption.ProxyPassword, proxySettings.Password);
+                        break;
+                }
+                curlEasy.SetOpt(CurlOption.Proxy, proxySettings.Host + ":" + proxySettings.Port.ToString());
             }
         }
 
@@ -165,7 +228,14 @@ namespace NzbDrone.Common.Http.Dispatchers
             var setCookie = webHeaderCollection.Get("Set-Cookie");
             if (setCookie != null && setCookie.Length > 0 && cookies != null)
             {
-                cookies.SetCookies(request.Url, FixSetCookieHeader(setCookie));
+                try
+                {
+                    cookies.SetCookies((Uri)request.Url, FixSetCookieHeader(setCookie));
+                }
+                catch (CookieException ex)
+                {
+                    _logger.Debug("Rejected cookie {0}: {1}", ex.InnerException.Message, setCookie);
+                }
             }
 
             return webHeaderCollection;
@@ -260,9 +330,6 @@ namespace NzbDrone.Common.Http.Dispatchers
             return true;
         }
 
-        public override bool IsInvalid
-        {
-            get { return !_initialized || !_available; }
-        }
+        public override bool IsInvalid => !_initialized || !_available;
     }
 }

@@ -1,19 +1,22 @@
 ﻿using System;
 using System.Linq;
+using System.Net;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Indexers.Newznab;
-using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
 {
     [TestFixture]
     public class NewznabFixture : CoreTest<Newznab>
     {
+        private NewznabCapabilities _caps;
+
         [SetUp]
         public void Setup()
         {
@@ -28,9 +31,10 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
                         }
                 };
 
+            _caps = new NewznabCapabilities();
             Mocker.GetMock<INewznabCapabilitiesProvider>()
                 .Setup(v => v.GetCapabilities(It.IsAny<NewznabSettings>()))
-                .Returns(new NewznabCapabilities());
+                .Returns(_caps);
         }
 
         [Test]
@@ -41,7 +45,7 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             Mocker.GetMock<IHttpClient>()
                 .Setup(o => o.Execute(It.Is<HttpRequest>(v => v.Method == HttpMethod.GET)))
                 .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), recentFeed));
-            
+
             var releases = Subject.FetchRecent();
 
             releases.Should().HaveCount(100);
@@ -57,6 +61,37 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             releaseInfo.Indexer.Should().Be(Subject.Definition.Name);
             releaseInfo.PublishDate.Should().Be(DateTime.Parse("2012/02/27 16:09:39"));
             releaseInfo.Size.Should().Be(1183105773);
+        }
+
+        [Test]
+        public void should_use_pagesize_reported_by_caps()
+        {
+            _caps.MaxPageSize = 30;
+            _caps.DefaultPageSize = 25;
+
+            Subject.PageSize.Should().Be(25);
+        }
+
+        [Test]
+        public void should_record_indexer_failure_if_caps_throw()
+        {
+            var request = new HttpRequest("http://my.indexer.com");
+            var response = new HttpResponse(request, new HttpHeader(), new byte[0], (HttpStatusCode)429);
+            response.Headers["Retry-After"] = "300";
+
+            Mocker.GetMock<INewznabCapabilitiesProvider>()
+                .Setup(v => v.GetCapabilities(It.IsAny<NewznabSettings>()))
+                .Throws(new TooManyRequestsException(request, response));
+
+            _caps.MaxPageSize = 30;
+            _caps.DefaultPageSize = 25;
+
+            Subject.FetchRecent().Should().BeEmpty();
+
+            Mocker.GetMock<IIndexerStatusService>()
+                  .Verify(v => v.RecordFailure(It.IsAny<int>(), TimeSpan.FromMinutes(5.0)), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

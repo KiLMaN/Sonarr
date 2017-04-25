@@ -31,7 +31,11 @@ module.exports = function() {
         self.shadowCollection = originalMakeFullCollection.call(this, models, options);
 
         var filterModel = function(model) {
-            if (!self.state.filterKey || !self.state.filterValue) {
+            if (_.isFunction(self.state.filterType)) {
+                return self.state.filterType(model);
+            }
+
+            if (!self.state.filterKey) {
                 return true;
             }
             else if (self.state.filterType === 'contains') {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -425,77 +426,87 @@ namespace NzbDrone.Core.Organizer
         {
             tokenHandlers["{Original Title}"] = m => GetOriginalTitle(episodeFile);
             tokenHandlers["{Original Filename}"] = m => GetOriginalFileName(episodeFile);
-            tokenHandlers["{Release Group}"] = m => episodeFile.ReleaseGroup ?? "Sonarr";
+            tokenHandlers["{Release Group}"] = m => episodeFile.ReleaseGroup ?? m.DefaultValue("Sonarr");
         }
 
         private void AddQualityTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Series series, EpisodeFile episodeFile)
         {
             var qualityTitle = _qualityDefinitionService.Get(episodeFile.Quality.Quality).Title;
             var qualityProper = GetQualityProper(series, episodeFile.Quality);
+            var qualityReal = GetQualityReal(series, episodeFile.Quality);
 
-            tokenHandlers["{Quality Full}"] = m => string.Format("{0} {1}", qualityTitle, qualityProper);
+            tokenHandlers["{Quality Full}"] = m => String.Format("{0} {1} {2}", qualityTitle, qualityProper, qualityReal);
             tokenHandlers["{Quality Title}"] = m => qualityTitle;
             tokenHandlers["{Quality Proper}"] = m => qualityProper;
+            tokenHandlers["{Quality Real}"] = m => qualityReal;
         }
 
         private void AddMediaInfoTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, EpisodeFile episodeFile)
         {
             if (episodeFile.MediaInfo == null) return;
 
-            string mediaInfoVideo;
+            string videoCodec;
             switch (episodeFile.MediaInfo.VideoCodec)
             {
                 case "AVC":
                     if (episodeFile.SceneName.IsNotNullOrWhiteSpace() && Path.GetFileNameWithoutExtension(episodeFile.SceneName).Contains("h264"))
                     {
-                        mediaInfoVideo = "h264";
+                        videoCodec = "h264";
                     }
                     else
                     {
-                        mediaInfoVideo = "x264";
+                        videoCodec = "x264";
                     }
                     break;
 
                 case "V_MPEGH/ISO/HEVC":
                     if (episodeFile.SceneName.IsNotNullOrWhiteSpace() && Path.GetFileNameWithoutExtension(episodeFile.SceneName).Contains("h265"))
                     {
-                        mediaInfoVideo = "h265";
+                        videoCodec = "h265";
                     }
                     else
                     {
-                        mediaInfoVideo = "x265";
+                        videoCodec = "x265";
                     }
                     break;
 
+                case "MPEG-2 Video":
+                    videoCodec = "MPEG2";
+                    break;
+
                 default:
-                    mediaInfoVideo = episodeFile.MediaInfo.VideoCodec;
+                    videoCodec = episodeFile.MediaInfo.VideoCodec;
                     break;
             }
 
-            string mediaInfoAudio;
+            string audioCodec;
             switch (episodeFile.MediaInfo.AudioFormat)
             {
                 case "AC-3":
-                    mediaInfoAudio = "AC3";
+                    audioCodec = "AC3";
+                    break;
+
+                case "E-AC-3":
+                    audioCodec = "EAC3";
                     break;
 
                 case "MPEG Audio":
                     if (episodeFile.MediaInfo.AudioProfile == "Layer 3")
                     {
-                        mediaInfoAudio = "MP3";
+                        audioCodec = "MP3";
                     }
                     else
                     {
-                        mediaInfoAudio = episodeFile.MediaInfo.AudioFormat;
+                        audioCodec = episodeFile.MediaInfo.AudioFormat;
                     }
                     break;
 
                 case "DTS":
-                    mediaInfoAudio = episodeFile.MediaInfo.AudioFormat;
+                    audioCodec = episodeFile.MediaInfo.AudioFormat;
                     break;
 
                 default:
-                    mediaInfoAudio = episodeFile.MediaInfo.AudioFormat;
+                    audioCodec = episodeFile.MediaInfo.AudioFormat;
                     break;
             }
 
@@ -516,14 +527,24 @@ namespace NzbDrone.Core.Organizer
                 mediaInfoSubtitleLanguages = string.Format("[ST {0}]", mediaInfoSubtitleLanguages);
             }
 
-            tokenHandlers["{MediaInfo Video}"] = m => mediaInfoVideo;
-            tokenHandlers["{MediaInfo Audio}"] = m => mediaInfoAudio;
             tokenHandlers["{MediaInfo SubtitleLanguage}"] = m => mediaInfoSubtitleLanguages;
             tokenHandlers["{MediaInfo AudioLanguage}"] = m => mediaInfoAudioLanguages;
+            var videoBitDepth = episodeFile.MediaInfo.VideoBitDepth > 0 ? episodeFile.MediaInfo.VideoBitDepth.ToString() : string.Empty;
+            var audioChannels = episodeFile.MediaInfo.FormattedAudioChannels > 0 ?
+                                episodeFile.MediaInfo.FormattedAudioChannels.ToString("F1", CultureInfo.InvariantCulture) :
+                                string.Empty;
 
-            tokenHandlers["{MediaInfo Simple}"] = m => string.Format("{0} {1}", mediaInfoVideo, mediaInfoAudio);
+            tokenHandlers["{MediaInfo Video}"] = m => videoCodec;
+            tokenHandlers["{MediaInfo VideoCodec}"] = m => videoCodec;
+            tokenHandlers["{MediaInfo VideoBitDepth}"] = m => videoBitDepth;
 
-            tokenHandlers["{MediaInfo Full}"] = m => string.Format("{0} {1}{2} {3}", mediaInfoVideo, mediaInfoAudio, mediaInfoAudioLanguages, mediaInfoSubtitleLanguages);
+            tokenHandlers["{MediaInfo Audio}"] = m => audioCodec;
+            tokenHandlers["{MediaInfo AudioCodec}"] = m => audioCodec;
+            tokenHandlers["{MediaInfo AudioChannels}"] = m => audioChannels;
+
+            tokenHandlers["{MediaInfo Simple}"] = m => string.Format("{0} {1}", videoCodec, audioCodec);
+
+            tokenHandlers["{MediaInfo Full}"] = m => string.Format("{0} {1}{2} {3}", videoCodec, audioCodec, mediaInfoAudioLanguages, mediaInfoSubtitleLanguages);
         }
 
         private string GetLanguagesToken(string mediaInfoLanguages)
@@ -684,10 +705,17 @@ namespace NzbDrone.Core.Organizer
                 return episodes.First().Title.TrimEnd(EpisodeTitleTrimCharacters);
             }
 
-            var titles = episodes
-                .Select(c => c.Title.TrimEnd(EpisodeTitleTrimCharacters))
-                .Select(CleanupEpisodeTitle)
-                .Distinct();
+            var titles = episodes.Select(c => c.Title.TrimEnd(EpisodeTitleTrimCharacters))
+                                 .Select(CleanupEpisodeTitle)
+                                 .Distinct()
+                                 .ToList();
+
+            if (titles.All(t => t.IsNullOrWhiteSpace()))
+            {
+                titles = episodes.Select(c => c.Title.TrimEnd(EpisodeTitleTrimCharacters))
+                                 .Distinct()
+                                 .ToList();
+            }
 
             return string.Join(separator, titles);
         }
@@ -708,6 +736,16 @@ namespace NzbDrone.Core.Organizer
                 }
 
                 return "Proper";
+            }
+
+            return String.Empty;
+        }
+
+        private string GetQualityReal(Series series, QualityModel quality)
+        {
+            if (quality.Revision.Real > 0)
+            {
+                return "REAL";
             }
 
             return string.Empty;
@@ -742,6 +780,18 @@ namespace NzbDrone.Core.Organizer
         public string Suffix { get; set; }
         public string Token { get; set; }
         public string CustomFormat { get; set; }
+
+        public string DefaultValue(string defaultValue)
+        {
+            if (string.IsNullOrEmpty(Prefix) && string.IsNullOrEmpty(Suffix))
+            {
+                return defaultValue;
+            }
+            else
+            {
+                return string.Empty;
+            }
+        }
     }
 
     public enum MultiEpisodeStyle

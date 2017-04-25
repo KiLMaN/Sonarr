@@ -1,6 +1,6 @@
 # How to Contribute #
 
-We're always looking for people to help make Sonarr even better, there are a number of ways to contribute. To get started, <a href="http://www.clahub.com/agreements/NzbDrone/NzbDrone">sign the Contributor License Agreement</a>.
+We're always looking for people to help make Sonarr even better, there are a number of ways to contribute.
 
 ## Documentation ##
 Setup guides, FAQ, the more information we have on the wiki the better.
@@ -8,17 +8,19 @@ Setup guides, FAQ, the more information we have on the wiki the better.
 ## Development ##
 
 ### Tools required ###
-- Visual Studio 2013
-- HTML/Javascript editor of choice (Sublime Text/Webstorm/etc)
+- Visual Studio 2015
+- HTML/Javascript editor of choice (Sublime Text/Webstorm/Atom/etc)
 - npm (node package manager)
 - git
 
 ### Getting started ###
 
 1.  Fork Sonarr
-2.  Clone (develop branch)
+2.  Clone (develop branch) *you may need pull in submodules separately if you client doesn't clone them automatically (CurlSharp)*
 3.  Run `npm install`
-4.  Run `gulp watch` - Used to compile the UI components and copy them (leave this window open)
+4.  Run `npm start` - Used to compile the UI components and copy them.
+    Leave this window open.
+    If you have gulp globally installed you can use `gulp watch` instead
 5.  Compile in Visual Studio
 
 ### Contributing Code ###

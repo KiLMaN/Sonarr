@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using NLog;
 using NzbDrone.Common.Processes;
 
@@ -38,7 +37,7 @@ namespace NzbDrone.Core.Notifications.Synology
             }
             catch (Exception ex)
             {
-                _logger.WarnException("synoindex not available", ex);
+                _logger.Warn(ex, "synoindex not available");
                 return false;
             }
         }

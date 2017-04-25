@@ -12,7 +12,7 @@ namespace NzbDrone.Core.Indexers
 {
     public static class XElementExtensions
     {
-        private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(XmlExtentions));
+        private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(XmlExtensions));
 
         public static readonly Regex RemoveTimeZoneRegex = new Regex(@"\s[A-Z]{2,4}$", RegexOptions.Compiled);
 
@@ -50,7 +50,7 @@ namespace NzbDrone.Core.Indexers
             }
             catch (FormatException e)
             {
-                Logger.WarnException("Unable to parse " + dateString, e);
+                Logger.Warn(e, "Unable to parse " + dateString);
                 throw;
             }
         }

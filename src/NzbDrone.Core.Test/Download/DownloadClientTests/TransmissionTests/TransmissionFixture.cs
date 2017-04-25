@@ -1,176 +1,16 @@
-using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
-using NzbDrone.Common.Http;
-using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients.Transmission;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 {
     [TestFixture]
-    public class TransmissionFixture : DownloadClientFixtureBase<Transmission>
+    public class TransmissionFixture : TransmissionFixtureBase<Transmission>
     {
-        protected TransmissionSettings _settings;
-        protected TransmissionTorrent _queued;
-        protected TransmissionTorrent _downloading;
-        protected TransmissionTorrent _failed;
-        protected TransmissionTorrent _completed;
-        protected Dictionary<string, object> _transmissionConfigItems;
-
-        [SetUp]
-        public void Setup()
-        {
-            _settings = new TransmissionSettings
-            {
-                Host = "127.0.0.1",
-                Port = 2222,
-                Username = "admin",
-                Password = "pass"
-            };
-
-            Subject.Definition = new DownloadClientDefinition();
-            Subject.Definition.Settings = _settings;
-
-            _queued = new TransmissionTorrent
-                    {
-                        HashString = "HASH",
-                        IsFinished = false,
-                        Status = TransmissionTorrentStatus.Queued,
-                        Name = _title,
-                        TotalSize = 1000,
-                        LeftUntilDone = 1000,
-                        DownloadDir = "somepath"
-                    };
-
-            _downloading = new TransmissionTorrent
-                {
-                    HashString = "HASH",
-                    IsFinished = false,
-                    Status = TransmissionTorrentStatus.Downloading,
-                    Name = _title,
-                    TotalSize = 1000,
-                    LeftUntilDone = 100,
-                    DownloadDir = "somepath"
-                };
-
-            _failed = new TransmissionTorrent
-                    {
-                        HashString = "HASH",
-                        IsFinished = false,
-                        Status = TransmissionTorrentStatus.Stopped,
-                        Name = _title,
-                        TotalSize = 1000,
-                        LeftUntilDone = 100,
-                        ErrorString = "Error",
-                        DownloadDir = "somepath"
-                    };
-
-            _completed = new TransmissionTorrent
-                    {
-                        HashString = "HASH",
-                        IsFinished = true,
-                        Status = TransmissionTorrentStatus.Stopped,
-                        Name = _title,
-                        TotalSize = 1000,
-                        LeftUntilDone = 0,
-                        DownloadDir = "somepath"
-                    };
-
-            Mocker.GetMock<ITorrentFileInfoReader>()
-                  .Setup(s => s.GetHashFromTorrentFile(It.IsAny<byte[]>()))
-                  .Returns("CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951");
-
-            Mocker.GetMock<IHttpClient>()
-                  .Setup(s => s.Get(It.IsAny<HttpRequest>()))
-                  .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[0]));
-
-            _transmissionConfigItems = new Dictionary<string, object>();
-
-            _transmissionConfigItems.Add("download-dir", @"C:/Downloads/Finished/transmission");
-            _transmissionConfigItems.Add("incomplete-dir", null);
-            _transmissionConfigItems.Add("incomplete-dir-enabled", false);
-
-            Mocker.GetMock<ITransmissionProxy>()
-                .Setup(v => v.GetConfig(It.IsAny<TransmissionSettings>()))
-                .Returns(_transmissionConfigItems);
-
-        }
-
-        protected void GivenTvCategory()
-        {
-            _settings.TvCategory = "sonarr";
-        }
-
-        protected void GivenFailedDownload()
-        {
-            Mocker.GetMock<ITransmissionProxy>()
-                .Setup(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TransmissionSettings>()))
-                .Throws<InvalidOperationException>();
-        }
-
-        protected void GivenSuccessfulDownload()
-        {
-            Mocker.GetMock<IHttpClient>()
-                  .Setup(s => s.Get(It.IsAny<HttpRequest>()))
-                  .Returns<HttpRequest>(r => new HttpResponse(r, new HttpHeader(), new byte[1000]));
-
-            Mocker.GetMock<ITransmissionProxy>()
-                .Setup(s => s.AddTorrentFromUrl(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TransmissionSettings>()))
-                .Callback(PrepareClientToReturnQueuedItem);
-
-            Mocker.GetMock<ITransmissionProxy>()
-                .Setup(s => s.AddTorrentFromData(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<TransmissionSettings>()))
-                .Callback(PrepareClientToReturnQueuedItem);
-        }
-        
-        protected virtual void GivenTorrents(List<TransmissionTorrent> torrents)
-        {
-            if (torrents == null)
-            {
-                torrents = new List<TransmissionTorrent>();
-            }
-
-            Mocker.GetMock<ITransmissionProxy>()
-                .Setup(s => s.GetTorrents(It.IsAny<TransmissionSettings>()))
-                .Returns(torrents);
-        }
-
-        protected void PrepareClientToReturnQueuedItem()
-        {
-            GivenTorrents(new List<TransmissionTorrent> 
-                {
-                    _queued
-                });
-        }
-
-        protected void PrepareClientToReturnDownloadingItem()
-        {
-            GivenTorrents(new List<TransmissionTorrent> 
-                {
-                    _downloading
-                });
-        }
-
-        protected void PrepareClientToReturnFailedItem()
-        {
-            GivenTorrents(new List<TransmissionTorrent> 
-                {
-                    _failed
-                });
-        }
-
-        protected void PrepareClientToReturnCompletedItem()
-        {
-            GivenTorrents(new List<TransmissionTorrent>
-                {
-                    _completed
-                });
-        }
-
         [Test]
         public void queued_item_should_have_required_properties()
         {
@@ -201,6 +41,16 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
             PrepareClientToReturnCompletedItem();
             var item = Subject.GetItems().Single();
             VerifyCompleted(item);
+
+            item.CanBeRemoved.Should().BeTrue();
+            item.CanMoveFiles.Should().BeTrue();
+        }
+
+        [Test]
+        public void magnet_download_should_not_return_the_item()
+        {
+            PrepareClientToReturnMagnetItem();
+            Subject.GetItems().Count().Should().Be(0);
         }
 
         [Test]
@@ -216,6 +66,22 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
         }
 
         [Test]
+        public void Download_with_TvDirectory_should_force_directory()
+        {
+            GivenTvDirectory();
+            GivenSuccessfulDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+
+            var id = Subject.Download(remoteEpisode);
+
+            id.Should().NotBeNullOrEmpty();
+
+            Mocker.GetMock<ITransmissionProxy>()
+                  .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), @"C:/Downloads/Finished/sonarr", It.IsAny<TransmissionSettings>()), Times.Once());
+        }
+
+        [Test]
         public void Download_with_category_should_force_directory()
         {
             GivenTvCategory();
@@ -228,7 +94,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
             id.Should().NotBeNullOrEmpty();
 
             Mocker.GetMock<ITransmissionProxy>()
-                .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), @"C:/Downloads/Finished/transmission/sonarr", It.IsAny<TransmissionSettings>()), Times.Once());
+                  .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), @"C:/Downloads/Finished/transmission/sonarr", It.IsAny<TransmissionSettings>()), Times.Once());
         }
 
         [Test]
@@ -246,7 +112,22 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
             id.Should().NotBeNullOrEmpty();
 
             Mocker.GetMock<ITransmissionProxy>()
-                .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), @"C:/Downloads/Finished/transmission/sonarr", It.IsAny<TransmissionSettings>()), Times.Once());
+                  .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), @"C:/Downloads/Finished/transmission/sonarr", It.IsAny<TransmissionSettings>()), Times.Once());
+        }
+
+        [Test]
+        public void Download_without_TvDirectory_and_Category_should_use_default()
+        {
+            GivenSuccessfulDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+
+            var id = Subject.Download(remoteEpisode);
+
+            id.Should().NotBeNullOrEmpty();
+
+            Mocker.GetMock<ITransmissionProxy>()
+                  .Verify(v => v.AddTorrentFromData(It.IsAny<byte[]>(), null, It.IsAny<TransmissionSettings>()), Times.Once());
         }
 
         [TestCase("magnet:?xt=urn:btih:ZPBPA2P6ROZPKRHK44D5OW6NHXU5Z6KR&tr=udp", "CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951")]
@@ -267,8 +148,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
         [TestCase(TransmissionTorrentStatus.Check, DownloadItemStatus.Downloading)]
         [TestCase(TransmissionTorrentStatus.Queued, DownloadItemStatus.Queued)]
         [TestCase(TransmissionTorrentStatus.Downloading, DownloadItemStatus.Downloading)]
-        [TestCase(TransmissionTorrentStatus.SeedingWait, DownloadItemStatus.Completed)]
-        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Completed)]
+        [TestCase(TransmissionTorrentStatus.SeedingWait, DownloadItemStatus.Downloading)]
+        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Downloading)]
         public void GetItems_should_return_queued_item_as_downloadItemStatus(TransmissionTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus)
         {
             _queued.Status = apiStatus;
@@ -282,7 +163,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 
         [TestCase(TransmissionTorrentStatus.Queued, DownloadItemStatus.Queued)]
         [TestCase(TransmissionTorrentStatus.Downloading, DownloadItemStatus.Downloading)]
-        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Completed)]
+        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Downloading)]
         public void GetItems_should_return_downloading_item_as_downloadItemStatus(TransmissionTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus)
         {
             _downloading.Status = apiStatus;
@@ -294,22 +175,23 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
             item.Status.Should().Be(expectedItemStatus);
         }
 
-        [TestCase(TransmissionTorrentStatus.Stopped, DownloadItemStatus.Completed, false)]
-        [TestCase(TransmissionTorrentStatus.CheckWait, DownloadItemStatus.Downloading, true)]
-        [TestCase(TransmissionTorrentStatus.Check, DownloadItemStatus.Downloading, true)]
-        [TestCase(TransmissionTorrentStatus.Queued, DownloadItemStatus.Completed, true)]
-        [TestCase(TransmissionTorrentStatus.SeedingWait, DownloadItemStatus.Completed, true)]
-        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Completed, true)]
-        public void GetItems_should_return_completed_item_as_downloadItemStatus(TransmissionTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus, bool expectedReadOnly)
+        [TestCase(TransmissionTorrentStatus.Stopped, DownloadItemStatus.Completed, true)]
+        [TestCase(TransmissionTorrentStatus.CheckWait, DownloadItemStatus.Downloading, false)]
+        [TestCase(TransmissionTorrentStatus.Check, DownloadItemStatus.Downloading, false)]
+        [TestCase(TransmissionTorrentStatus.Queued, DownloadItemStatus.Completed, false)]
+        [TestCase(TransmissionTorrentStatus.SeedingWait, DownloadItemStatus.Completed, false)]
+        [TestCase(TransmissionTorrentStatus.Seeding, DownloadItemStatus.Completed, false)]
+        public void GetItems_should_return_completed_item_as_downloadItemStatus(TransmissionTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus, bool expectedValue)
         {
             _completed.Status = apiStatus;
-            
+
             PrepareClientToReturnCompletedItem();
 
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(expectedItemStatus);
-            item.IsReadOnly.Should().Be(expectedReadOnly);
+            item.CanBeRemoved.Should().Be(expectedValue);
+            item.CanMoveFiles.Should().Be(expectedValue);
         }
 
         [Test]
@@ -329,7 +211,26 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 
             _downloading.DownloadDir = @"C:/Downloads/Finished/transmission/sonarr";
 
-            GivenTorrents(new List<TransmissionTorrent> 
+            GivenTorrents(new List<TransmissionTorrent>
+                {
+                    _downloading,
+                    _queued
+                });
+
+            var items = Subject.GetItems().ToList();
+
+            items.Count.Should().Be(1);
+            items.First().Status.Should().Be(DownloadItemStatus.Downloading);
+        }
+
+        [Test]
+        public void should_exclude_items_not_in_TvDirectory()
+        {
+            GivenTvDirectory();
+
+            _downloading.DownloadDir = @"C:/Downloads/Finished/sonarr/subdir";
+
+            GivenTorrents(new List<TransmissionTorrent>
                 {
                     _downloading,
                     _queued
@@ -348,7 +249,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
 
             _downloading.DownloadDir = @"C:/Downloads/Finished/transmission";
 
-            GivenTorrents(new List<TransmissionTorrent> 
+            GivenTorrents(new List<TransmissionTorrent>
                 {
                     _downloading
                 });
@@ -363,13 +264,13 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.TransmissionTests
         [TestCase("2.84+ ()")]
         [TestCase("2.84 (other info)")]
         [TestCase("2.84 (2.84)")]
-        public void should_version_should_only_check_version_number(string version)
+        public void should_only_check_version_number(string version)
         {
             Mocker.GetMock<ITransmissionProxy>()
-                  .Setup(s => s.GetVersion(It.IsAny<TransmissionSettings>()))
+                  .Setup(s => s.GetClientVersion(It.IsAny<TransmissionSettings>()))
                   .Returns(version);
 
-            Subject.Test();
+            Subject.Test().IsValid.Should().BeTrue();
         }
 
         [TestCase(-1)] // Infinite/Unknown

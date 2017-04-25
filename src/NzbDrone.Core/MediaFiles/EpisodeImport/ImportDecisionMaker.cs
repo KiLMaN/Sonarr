@@ -111,7 +111,10 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             }
             catch (Exception e)
             {
-                _logger.ErrorException("Couldn't import file. " + file, e);
+                _logger.Error(e, "Couldn't import file. {0}", file);
+
+                var localEpisode = new LocalEpisode { Path = file };
+                decision = new ImportDecision(localEpisode, new Rejection("Unexpected error processing file"));
             }
 
             return decision;
@@ -140,8 +143,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             {
                 //e.Data.Add("report", remoteEpisode.Report.ToJson());
                 //e.Data.Add("parsed", remoteEpisode.ParsedEpisodeInfo.ToJson());
-                _logger.ErrorException("Couldn't evaluate decision on " + localEpisode.Path, e);
-                return new Rejection(string.Format("{0}: {1}", spec.GetType().Name, e.Message));
+                _logger.Error(e, "Couldn't evaluate decision on {0}", localEpisode.Path);
+                return new Rejection($"{spec.GetType().Name}: {e.Message}");
             }
 
             return null;
@@ -163,7 +166,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             {
                 var size = _diskProvider.GetFileSize(file);
                 var fileQuality = QualityParser.ParseQuality(file);
-                var sample = _detectSample.IsSample(series, GetQuality(folderInfo, fileQuality, series), file, size, folderInfo.SeasonNumber);
+                var sample = _detectSample.IsSample(series, GetQuality(folderInfo, fileQuality, series), file, size, folderInfo.IsPossibleSpecialEpisode);
 
                 if (sample)
                 {
@@ -181,15 +184,38 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
         private QualityModel GetQuality(ParsedEpisodeInfo folderInfo, QualityModel fileQuality, Series series)
         {
-            if (folderInfo != null &&
-                folderInfo.Quality.Quality != Quality.Unknown && 
-                new QualityModelComparer(series.Profile).Compare(folderInfo.Quality, fileQuality) > 0)
+            if (UseFolderQuality(folderInfo, fileQuality, series))
             {
                 _logger.Debug("Using quality from folder: {0}", folderInfo.Quality);
                 return folderInfo.Quality;
             }
 
             return fileQuality;
+        }
+
+        private bool UseFolderQuality(ParsedEpisodeInfo folderInfo, QualityModel fileQuality, Series series)
+        {
+            if (folderInfo == null)
+            {
+                return false;
+            }
+
+            if (folderInfo.Quality.Quality == Quality.Unknown)
+            {
+                return false;
+            }
+
+            if (fileQuality.QualitySource == QualitySource.Extension)
+            {
+                return true;
+            }
+
+            if (new QualityModelComparer(series.Profile).Compare(folderInfo.Quality, fileQuality) > 0)
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }

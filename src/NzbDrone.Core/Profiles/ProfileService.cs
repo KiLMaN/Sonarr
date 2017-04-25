@@ -16,6 +16,7 @@ namespace NzbDrone.Core.Profiles
         void Delete(int id);
         List<Profile> All();
         Profile Get(int id);
+        bool Exists(int id);
     }
 
     public class ProfileService : IProfileService, IHandle<ApplicationStartedEvent>
@@ -59,6 +60,11 @@ namespace NzbDrone.Core.Profiles
         public Profile Get(int id)
         {
             return _profileRepository.Get(id);
+        }
+
+        public bool Exists(int id)
+        {
+            return _profileRepository.Exists(id);
         }
 
         private Profile AddDefaultProfile(string name, Quality cutoff, params Quality[] allowed)
@@ -105,7 +111,12 @@ namespace NzbDrone.Core.Profiles
                 Quality.WEBDL1080p,
                 Quality.Bluray1080p);
 
-            AddDefaultProfile("HD - All", Quality.HDTV720p,
+            AddDefaultProfile("Ultra-HD", Quality.HDTV2160p,
+                Quality.HDTV2160p,
+                Quality.WEBDL2160p,
+                Quality.Bluray2160p);
+
+            AddDefaultProfile("HD - 720p/1080p", Quality.HDTV720p,
                 Quality.HDTV720p,
                 Quality.HDTV1080p,
                 Quality.WEBDL720p,

@@ -16,7 +16,8 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.Search
             _episodeService = episodeService;
         }
 
-        public RejectionType Type { get { return RejectionType.Permanent; } }
+        public SpecificationPriority Priority => SpecificationPriority.Database;
+        public RejectionType Type => RejectionType.Permanent;
 
         public Decision IsSatisfiedBy(RemoteEpisode remoteEpisode, SearchCriteriaBase searchCriteria)
         {

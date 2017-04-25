@@ -1,16 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FluentValidation;
 using FluentValidation.Results;
 using Nancy;
 using NzbDrone.Api.ClientSchema;
 using NzbDrone.Api.Extensions;
-using NzbDrone.Api.Mapping;
 using NzbDrone.Common.Reflection;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
-using Omu.ValueInjecter;
 using Newtonsoft.Json;
 
 namespace NzbDrone.Api
@@ -29,7 +26,7 @@ namespace NzbDrone.Api
 
             Get["schema"] = x => GetTemplates();
             Post["test"] = x => Test(ReadResourceFromRequest(true));
-            Post["connectData/{stage}"] = x => ConnectData(x.stage, ReadResourceFromRequest(true));
+            Post["action/{action}"] = x => RequestAction(x.action, ReadResourceFromRequest(true));
 
             GetResourceAll = GetAll;
             GetResourceById = GetProviderById;
@@ -48,9 +45,10 @@ namespace NzbDrone.Api
         private TProviderResource GetProviderById(int id)
         {
             var definition = _providerFactory.Get(id);
-            var resource = definition.InjectTo<TProviderResource>();
+            _providerFactory.SetProviderCharacteristics(definition);
 
-            resource.InjectFrom(_providerFactory.GetProviderCharacteristics(_providerFactory.GetInstance(definition), definition));
+            var resource = new TProviderResource();
+            MapToResource(resource, definition);
 
             return resource;
         }
@@ -63,10 +61,10 @@ namespace NzbDrone.Api
 
             foreach (var definition in providerDefinitions)
             {
+                _providerFactory.SetProviderCharacteristics(definition);
+
                 var providerResource = new TProviderResource();
-                providerResource.InjectFrom(definition);
-                providerResource.InjectFrom(_providerFactory.GetProviderCharacteristics(_providerFactory.GetInstance(definition), definition));
-                providerResource.Fields = SchemaBuilder.ToSchema(definition.Settings);
+                MapToResource(providerResource, definition);
 
                 result.Add(providerResource);
             }
@@ -92,11 +90,6 @@ namespace NzbDrone.Api
         {
             var providerDefinition = GetDefinition(providerResource, false);
 
-            if (providerDefinition.Enable)
-            {
-                Test(providerDefinition, false);
-            }
-
             _providerFactory.Update(providerDefinition);
         }
 
@@ -104,21 +97,45 @@ namespace NzbDrone.Api
         {
             var definition = new TProviderDefinition();
 
-            definition.InjectFrom(providerResource);
+            MapToModel(definition, providerResource);
 
-            var preset = _providerFactory.GetPresetDefinitions(definition)
-                            .Where(v => v.Name == definition.Name)
-                            .Select(v => v.Settings)
-                            .FirstOrDefault();
-
-            var configContract = ReflectionExtensions.CoreAssembly.FindTypeByName(definition.ConfigContract);
-            definition.Settings = (IProviderConfig)SchemaBuilder.ReadFormSchema(providerResource.Fields, configContract, preset);
             if (validate)
             {
                 Validate(definition, includeWarnings);
             }
 
             return definition;
+        }
+
+        protected virtual void MapToResource(TProviderResource resource, TProviderDefinition definition)
+        {
+            resource.Id = definition.Id;
+
+            resource.Name = definition.Name;
+            resource.ImplementationName = definition.ImplementationName;
+            resource.Implementation = definition.Implementation;
+            resource.ConfigContract = definition.ConfigContract;
+            resource.Message = definition.Message;
+
+            resource.Fields = SchemaBuilder.ToSchema(definition.Settings);
+
+            resource.InfoLink = string.Format("https://github.com/Sonarr/Sonarr/wiki/Supported-{0}#{1}",
+                typeof(TProviderResource).Name.Replace("Resource", "s"),
+                definition.Implementation.ToLower());
+        }
+
+        protected virtual void MapToModel(TProviderDefinition definition, TProviderResource resource)
+        {
+            definition.Id = resource.Id;
+
+            definition.Name = resource.Name;
+            definition.ImplementationName = resource.ImplementationName;
+            definition.Implementation = resource.Implementation;
+            definition.ConfigContract = resource.ConfigContract;
+            definition.Message = resource.Message;
+
+            var configContract = ReflectionExtensions.CoreAssembly.FindTypeByName(definition.ConfigContract);
+            definition.Settings = (IProviderConfig)SchemaBuilder.ReadFromSchema(resource.Fields, configContract);
         }
 
         private void DeleteProvider(int id)
@@ -135,19 +152,14 @@ namespace NzbDrone.Api
             foreach (var providerDefinition in defaultDefinitions)
             {
                 var providerResource = new TProviderResource();
-                providerResource.InjectFrom(providerDefinition);
-                providerResource.Fields = SchemaBuilder.ToSchema(providerDefinition.Settings);
-                providerResource.InfoLink = string.Format("https://github.com/NzbDrone/NzbDrone/wiki/Supported-{0}#{1}",
-                    typeof(TProviderResource).Name.Replace("Resource", "s"),
-                    providerDefinition.Implementation.ToLower());
+                MapToResource(providerResource, providerDefinition);
 
                 var presetDefinitions = _providerFactory.GetPresetDefinitions(providerDefinition);
 
                 providerResource.Presets = presetDefinitions.Select(v =>
                 {
                     var presetResource = new TProviderResource();
-                    presetResource.InjectFrom(v);
-                    presetResource.Fields = SchemaBuilder.ToSchema(v.Settings);
+                    MapToResource(presetResource, v);
 
                     return presetResource as ProviderResource;
                 }).ToList();
@@ -160,21 +172,23 @@ namespace NzbDrone.Api
 
         private Response Test(TProviderResource providerResource)
         {
-            var providerDefinition = GetDefinition(providerResource, true);
+            // Don't validate when getting the definition so we can validate afterwards (avoids validation being skipped because the provider is disabled)
+            var providerDefinition = GetDefinition(providerResource, true, false);
 
+            Validate(providerDefinition, true);
             Test(providerDefinition, true);
 
             return "{}";
         }
 
 
-        private Response ConnectData(string stage, TProviderResource providerResource)
+        private Response RequestAction(string action, TProviderResource providerResource)
         {
-            TProviderDefinition providerDefinition = GetDefinition(providerResource, true, false);
+            var providerDefinition = GetDefinition(providerResource, true, false);
 
-            if (!providerDefinition.Enable) return "{}";
+            var query = ((IDictionary<string, object>)Request.Query.ToDictionary()).ToDictionary(k => k.Key, k => k.Value.ToString());
 
-            object data = _providerFactory.ConnectData(providerDefinition, stage, (IDictionary<string, object>) Request.Query.ToDictionary());
+            var data = _providerFactory.RequestAction(providerDefinition, action, query);
             Response resp = JsonConvert.SerializeObject(data);
             resp.ContentType = "application/json";
             return resp;

@@ -1,11 +1,9 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 using System.Data.SQLite;
 using NLog.Common;
 using NLog.Config;
 using NLog;
 using NLog.Targets;
-using NLog.Targets.Wrappers;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Lifecycle;
@@ -28,9 +26,11 @@ namespace NzbDrone.Core.Instrumentation
 
         public void Register()
         {
-            Rule = new LoggingRule("*", LogLevel.Info, this);
+            var target = new SlowRunningAsyncTargetWrapper(this) { TimeToSleepBetweenBatches = 500 };
 
-            LogManager.Configuration.AddTarget("DbLogger", new AsyncTargetWrapper(this));
+            Rule = new LoggingRule("*", LogLevel.Info, target);
+
+            LogManager.Configuration.AddTarget("DbLogger", target);
             LogManager.Configuration.LoggingRules.Add(Rule);
             LogManager.ConfigurationReloaded += OnLogManagerOnConfigurationReloaded;
             LogManager.ReconfigExistingLoggers();
@@ -97,7 +97,7 @@ namespace NzbDrone.Core.Instrumentation
             }
             catch (SQLiteException ex)
             {
-                InternalLogger.Error("Unable to save log event to database: {0}", ex);
+                InternalLogger.Error(ex, "Unable to save log event to database");
                 throw;
             }
         }

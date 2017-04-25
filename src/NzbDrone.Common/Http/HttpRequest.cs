@@ -1,23 +1,21 @@
 using System;
 using System.Collections.Generic;
-using System.Net;
+using System.Text;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Common.Http
 {
     public class HttpRequest
     {
-        private readonly Dictionary<string, string> _segments;
-
         public HttpRequest(string url, HttpAccept httpAccept = null)
         {
-            UriBuilder = new UriBuilder(url);
+            Url = new HttpUri(url);
             Headers = new HttpHeader();
-            _segments = new Dictionary<string, string>();
             AllowAutoRedirect = true;
             Cookies = new Dictionary<string, string>();
-
-            if (!RuntimeInfoBase.IsProduction)
+            
+            if (!RuntimeInfo.IsProduction)
             {
                 AllowAutoRedirect = false;
             }
@@ -28,73 +26,55 @@ namespace NzbDrone.Common.Http
             }
         }
 
-        public UriBuilder UriBuilder { get; private set; }
-
-        public Uri Url
-        {
-            get
-            {
-                var uri = UriBuilder.Uri.ToString();
-
-                foreach (var segment in _segments)
-                {
-                    uri = uri.Replace(segment.Key, segment.Value);
-                }
-
-                return new Uri(uri);
-            }
-        }
-
+        public HttpUri Url { get; set; }
         public HttpMethod Method { get; set; }
         public HttpHeader Headers { get; set; }
-        public string Body { get; set; }
-        public NetworkCredential NetworkCredential { get; set; }
+        public byte[] ContentData { get; set; }
+        public string ContentSummary { get; set; }
         public bool SuppressHttpError { get; set; }
+        public bool UseSimplifiedUserAgent { get; set; }
         public bool AllowAutoRedirect { get; set; }
+        public bool ConnectionKeepAlive { get; set; }
+        public bool LogResponseContent { get; set; }
         public Dictionary<string, string> Cookies { get; private set; }
         public bool StoreResponseCookie { get; set; }
+        public TimeSpan RequestTimeout { get; set; }
         public TimeSpan RateLimit { get; set; }
 
         public override string ToString()
         {
-            if (Body == null)
+            return ToString();
+        }
+
+        public string ToString(bool includeMethod = true, bool includeSummary = true)
+        {
+            var builder = new StringBuilder();
+
+            if (includeMethod)
             {
-                return string.Format("Req: [{0}] {1}", Method, Url);
+                builder.AppendFormat("Req: [{0}] ", Method);
             }
 
-            return string.Format("Req: [{0}] {1} {2} {3}", Method, Url, Environment.NewLine, Body);
-        }
+            builder.Append(Url);
 
-        public void AddSegment(string segment, string value)
-        {
-            var key = "{" + segment + "}";
-
-            if (!UriBuilder.Uri.ToString().Contains(key))
+            if (includeSummary && ContentSummary.IsNotNullOrWhiteSpace())
             {
-                throw new InvalidOperationException("Segment " + key +" is not defined in Uri");
+                builder.Append(": ");
+                builder.Append(ContentSummary);
             }
 
-            _segments.Add(key, value);
+            return builder.ToString();
         }
 
-        public void AddQueryParam(string segment, string value)
+        public void SetContent(byte[] data)
         {
-            UriBuilder.SetQueryParam(segment, value);
+            ContentData = data;
         }
 
-        public void AddCookie(string key, string value)
+        public void SetContent(string data)
         {
-            Cookies[key] = value;
-        }
-
-        public void AddCookie(string cookies)
-        {
-            foreach (var pair in cookies.Split(';'))
-            {
-                var split = pair.Split('=');
-
-                Cookies[split[0].Trim()] = split[1].Trim();
-            }
+            var encoding = HttpHeader.GetEncodingFromContentType(Headers.ContentType);
+            ContentData = encoding.GetBytes(data);
         }
     }
 }

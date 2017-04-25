@@ -1,13 +1,12 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Common.Http.Proxy;
 
 namespace NzbDrone.Core.Configuration
 {
     public interface IConfigService
     {
-        IEnumerable<Config> All();
-        Dictionary<string, object> AllWithDefaults();
         void SaveConfigDictionary(Dictionary<string, object> configValues);
 
         bool IsDefined(string key);
@@ -36,6 +35,8 @@ namespace NzbDrone.Core.Configuration
 	//bool CopyUsingSymboliclinks { get; set; }
 	Int32  ActionOnGrab { get; set; }
         bool EnableMediaInfo { get; set; }
+        bool ImportExtraFiles { get; set; }
+        string ExtraFileExtensions { get; set; }
 
         //Permissions (Media Management)
         bool SetPermissionsLinux { get; set; }
@@ -68,5 +69,15 @@ namespace NzbDrone.Core.Configuration
         string HmacPassphrase { get; }
         string RijndaelSalt { get; }
         string HmacSalt { get; }
+
+        //Proxy
+        bool ProxyEnabled { get; }
+        ProxyType ProxyType { get; }
+        string ProxyHostname { get; }
+        int ProxyPort { get; }
+        string ProxyUsername { get; }
+        string ProxyPassword { get; }
+        string ProxyBypassFilter { get; }
+        bool ProxyBypassLocalAddresses { get; }
     }
 }

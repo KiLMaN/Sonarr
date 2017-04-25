@@ -20,7 +20,7 @@ namespace NzbDrone.Common.Disk
 
         private readonly HashSet<string> _setToRemove = new HashSet<string>
                                                         {
-                                                            //Windows
+                                                            // Windows
                                                             "boot",
                                                             "bootmgr",
                                                             "cache",
@@ -32,14 +32,20 @@ namespace NzbDrone.Common.Disk
                                                             "temporary internet files",
                                                             "windows",
 
-                                                            //OS X
+                                                            // OS X
                                                             ".fseventd",
                                                             ".spotlight",
                                                             ".trashes",
                                                             ".vol",
                                                             "cachedmessages",
                                                             "caches",
-                                                            "trash"
+                                                            "trash",
+
+                                                            // QNAP
+                                                            ".@__thumb",
+
+                                                            // Synology
+                                                            "@eadir"
                                                         };
 
         public FileSystemLookupService(IDiskProvider diskProvider, Logger logger)
@@ -103,12 +109,12 @@ namespace NzbDrone.Common.Disk
 
         private List<FileSystemModel> GetDrives()
         {
-            return _diskProvider.GetDrives()
+            return _diskProvider.GetMounts()
                                 .Select(d => new FileSystemModel
                                              {
                                                  Type = FileSystemEntityType.Drive,
-                                                 Name = GetVolumeName(d),
-                                                 Path = d.Name,
+                                                 Name = d.VolumeName,
+                                                 Path = d.RootDirectory,
                                                  LastModified = null
                                              })
                                 .ToList();
@@ -158,16 +164,6 @@ namespace NzbDrone.Common.Disk
             return path;
         }
 
-        private string GetVolumeName(DriveInfo driveInfo)
-        {
-            if (driveInfo.VolumeLabel.IsNullOrWhiteSpace())
-            {
-                return driveInfo.Name;
-            }
-
-            return string.Format("{0} ({1})", driveInfo.Name, driveInfo.VolumeLabel);
-        }
-        
         private string GetParent(string path)
         {
             var di = new DirectoryInfo(path);

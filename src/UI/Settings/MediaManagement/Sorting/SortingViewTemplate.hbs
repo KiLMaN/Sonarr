@@ -25,11 +25,11 @@
     </div>
 </fieldset>
 
-<fieldset class="advanced-setting">
+<fieldset>
     <legend>Importing</legend>
 
 {{#if_mono}}
-    <div class="form-group">
+    <div class="form-group advanced-setting">
         <label class="col-sm-3 control-label">Skip Free Space Check</label>
 
         <div class="col-sm-9">
@@ -64,5 +64,46 @@
 				<option value="3">Create Symbolic Links</option>
 			</select>
 		</div>
-	</div>
+
+                <span class="help-inline-checkbox">
+                    <i class="icon-sonarr-form-info" title="Use Hardlinks when trying to copy files from torrents that are still being seeded"/>
+                    <i class="icon-sonarr-form-warning" title="Occasionally, file locks may prevent renaming files that are being seeded. You may temporarily disable seeding and use Sonarr's rename function as a work around."/>
+                </span>
+            </div>
+
+    <div class="form-group">
+        <label class="col-sm-3 control-label">Import Extra Files</label>
+
+        <div class="col-sm-9">
+            <div class="input-group">
+                <label class="checkbox toggle well">
+                    <input type="checkbox" name="importExtraFiles" class="x-import-extra-files"/>
+
+                    <p>
+                        <span>Yes</span>
+                        <span>No</span>
+                    </p>
+
+                    <div class="btn btn-primary slide-button"/>
+                </label>
+
+                <span class="help-inline-checkbox">
+                    <i class="icon-sonarr-form-info" title="Import matching extra files (subtitles, nfo, etc) after importing an episode file"/>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group x-extra-file-extensions">
+        <label class="col-sm-3 control-label">Extra File Extensions</label>
+
+        <div class="col-sm-1 col-sm-push-5 help-inline">
+            <i class="icon-sonarr-form-info" title="Comma separated list of extra files to import, ie sub,nfo (.nfo will be imported as .nfo-orig)"/>
+        </div>
+
+        <div class="col-sm-5 col-sm-pull-1">
+            <input type="text" name="extraFileExtensions" class="form-control"/>
+        </div>
+    </div>
+
 </fieldset>

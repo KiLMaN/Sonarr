@@ -28,25 +28,25 @@ namespace NzbDrone.Common.Http
         private readonly Logger _logger;
         private readonly IRateLimitService _rateLimitService;
         private readonly ICached<CookieContainer> _cookieContainerCache;
-        private readonly ICached<bool> _curlTLSFallbackCache;
         private readonly List<IHttpRequestInterceptor> _requestInterceptors;
         private readonly IHttpDispatcher _httpDispatcher;
+        private readonly IUserAgentBuilder _userAgentBuilder;
 
-        public HttpClient(IEnumerable<IHttpRequestInterceptor> requestInterceptors, ICacheManager cacheManager, IRateLimitService rateLimitService, IHttpDispatcher httpDispatcher, Logger logger)
+        public HttpClient(IEnumerable<IHttpRequestInterceptor> requestInterceptors,
+            ICacheManager cacheManager,
+            IRateLimitService rateLimitService,
+            IHttpDispatcher httpDispatcher,
+            IUserAgentBuilder userAgentBuilder,
+            Logger logger)
         {
-            _logger = logger;
-            _rateLimitService = rateLimitService;
             _requestInterceptors = requestInterceptors.ToList();
-            ServicePointManager.DefaultConnectionLimit = 12;
+            _rateLimitService = rateLimitService;
             _httpDispatcher = httpDispatcher;
+            _userAgentBuilder = userAgentBuilder;
+            _logger = logger;
 
+            ServicePointManager.DefaultConnectionLimit = 12;
             _cookieContainerCache = cacheManager.GetCache<CookieContainer>(typeof(HttpClient));
-        }
-
-        public HttpClient(IEnumerable<IHttpRequestInterceptor> requestInterceptors, ICacheManager cacheManager, IRateLimitService rateLimitService, Logger logger)
-            : this(requestInterceptors, cacheManager, rateLimitService, null, logger)
-        {
-            _httpDispatcher = new FallbackHttpDispatcher(cacheManager.GetCache<bool>(typeof(HttpClient), "curlTLSFallback"), _logger);
         }
 
         public HttpResponse Execute(HttpRequest request)
@@ -73,19 +73,24 @@ namespace NzbDrone.Common.Http
 
             stopWatch.Stop();
 
-            _logger.Trace("{0} ({1:n0} ms)", response, stopWatch.ElapsedMilliseconds);
+            _logger.Trace("{0} ({1} ms)", response, stopWatch.ElapsedMilliseconds);
 
             foreach (var interceptor in _requestInterceptors)
             {
                 response = interceptor.PostResponse(response);
             }
 
-            if (!RuntimeInfoBase.IsProduction &&
+            if (request.LogResponseContent)
+            {
+                _logger.Trace("Response content ({0} bytes): {1}", response.ResponseData.Length, response.Content);
+            }
+
+            if (!RuntimeInfo.IsProduction &&
                 (response.StatusCode == HttpStatusCode.Moved ||
                  response.StatusCode == HttpStatusCode.MovedPermanently ||
                  response.StatusCode == HttpStatusCode.Found))
             {
-                _logger.Error("Server requested a redirect to [" + response.Headers["Location"] + "]. Update the request URL to avoid this redirect.");
+                _logger.Error("Server requested a redirect to [{0}]. Update the request URL to avoid this redirect.", response.Headers["Location"]);
             }
 
             if (!request.SuppressHttpError && response.HasHttpError)
@@ -124,7 +129,7 @@ namespace NzbDrone.Common.Http
                     }
                 }
 
-                var requestCookies = persistentCookieContainer.GetCookies(request.Url);
+                var requestCookies = persistentCookieContainer.GetCookies((Uri)request.Url);
 
                 var cookieContainer = new CookieContainer();
 
@@ -145,7 +150,7 @@ namespace NzbDrone.Common.Http
             {
                 var persistentCookieContainer = _cookieContainerCache.Get("container", () => new CookieContainer());
 
-                var cookies = cookieContainer.GetCookies(request.Url);
+                var cookies = cookieContainer.GetCookies((Uri)request.Url);
 
                 persistentCookieContainer.Add(cookies);
             }
@@ -165,7 +170,7 @@ namespace NzbDrone.Common.Http
 
                 var stopWatch = Stopwatch.StartNew();
                 var webClient = new GZipWebClient();
-                webClient.Headers.Add(HttpRequestHeader.UserAgent, UserAgentBuilder.UserAgent);
+                webClient.Headers.Add(HttpRequestHeader.UserAgent, _userAgentBuilder.GetUserAgent());
                 webClient.DownloadFile(url, fileName);
                 stopWatch.Stop();
                 _logger.Debug("Downloading Completed. took {0:0}s", stopWatch.Elapsed.Seconds);
@@ -177,7 +182,7 @@ namespace NzbDrone.Common.Http
             }
             catch (Exception e)
             {
-                _logger.WarnException("Failed to get response from: " + url, e);
+                _logger.Warn(e, "Failed to get response from: " + url);
                 throw;
             }
         }

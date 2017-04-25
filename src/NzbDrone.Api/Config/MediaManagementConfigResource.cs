@@ -1,5 +1,6 @@
 ﻿using System;
 using NzbDrone.Api.REST;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles;
 
 namespace NzbDrone.Api.Config
@@ -20,9 +21,39 @@ namespace NzbDrone.Api.Config
 
 
         public bool SkipFreeSpaceCheckWhenImporting { get; set; }
-        public bool CopyUsingHardlinks { get; set; }
+     //   public bool CopyUsingHardlinks { get; set; }
 	public bool CopyUsingSymboliclinks { get; set; }
 	public Int32 ActionOnGrab { get; set; }
+        public bool ImportExtraFiles { get; set; }
+        public string ExtraFileExtensions { get; set; }
         public bool EnableMediaInfo { get; set; }
+    }
+
+    public static class MediaManagementConfigResourceMapper
+    {
+        public static MediaManagementConfigResource ToResource(IConfigService model)
+        {
+            return new MediaManagementConfigResource
+            {
+                AutoUnmonitorPreviouslyDownloadedEpisodes = model.AutoUnmonitorPreviouslyDownloadedEpisodes,
+                RecycleBin = model.RecycleBin,
+                AutoDownloadPropers = model.AutoDownloadPropers,
+                CreateEmptySeriesFolders = model.CreateEmptySeriesFolders,
+                FileDate = model.FileDate,
+
+                SetPermissionsLinux = model.SetPermissionsLinux,
+                FileChmod = model.FileChmod,
+                FolderChmod = model.FolderChmod,
+                ChownUser = model.ChownUser,
+                ChownGroup = model.ChownGroup,
+
+                SkipFreeSpaceCheckWhenImporting = model.SkipFreeSpaceCheckWhenImporting,
+                //CopyUsingHardlinks = model.CopyUsingHardlinks,
+                ActionOnGrab = model.ActionOnGrab,
+		ImportExtraFiles = model.ImportExtraFiles,
+                ExtraFileExtensions = model.ExtraFileExtensions,
+                EnableMediaInfo = model.EnableMediaInfo
+            };
+        }
     }
 }

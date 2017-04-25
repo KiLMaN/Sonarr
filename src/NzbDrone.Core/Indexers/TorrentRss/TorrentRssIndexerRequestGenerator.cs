@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.IndexerSearch.Definitions;
@@ -50,7 +49,10 @@ namespace NzbDrone.Core.Indexers.TorrentRss
 
             if (Settings.Cookie.IsNotNullOrWhiteSpace())
             {
-                request.HttpRequest.AddCookie(Settings.Cookie);
+                foreach (var cookie in HttpHeader.ParseCookies(Settings.Cookie))
+                {
+                    request.HttpRequest.Cookies[cookie.Key] = cookie.Value;
+                }
             }
 
             yield return request;

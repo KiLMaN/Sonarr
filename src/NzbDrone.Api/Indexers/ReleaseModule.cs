@@ -68,7 +68,7 @@ namespace NzbDrone.Api.Indexers
             }
             catch (ReleaseDownloadException ex)
             {
-                _logger.ErrorException(ex.Message, ex);
+                _logger.Error(ex);
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "Getting release from indexer failed");
             }
 
@@ -89,14 +89,14 @@ namespace NzbDrone.Api.Indexers
         {
             try
             {
-                var decisions = _nzbSearchService.EpisodeSearch(episodeId);
+                var decisions = _nzbSearchService.EpisodeSearch(episodeId, true);
                 var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisions(decisions);
 
                 return MapDecisions(prioritizedDecisions);
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Episode search failed: " + ex.Message, ex);
+                _logger.Error(ex, "Episode search failed");
             }
 
             return new List<ReleaseResource>();

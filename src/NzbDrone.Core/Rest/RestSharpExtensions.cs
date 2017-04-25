@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.EnsureThat;
@@ -29,7 +28,7 @@ namespace NzbDrone.Core.Rest
 
             if (response.ResponseUri == null)
             {
-                Logger.ErrorException("Error communicating with server", response.ErrorException);
+                Logger.Error(response.ErrorException, "Error communicating with server");
                 throw response.ErrorException;
             }
 

@@ -7,12 +7,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
     {
         public List<ManualImportFile> Files { get; set; }
 
-        public override bool SendUpdatesToClient
-        {
-            get
-            {
-                return true;
-            }
-        }
+        public override bool SendUpdatesToClient => true;
+
+        public ImportMode ImportMode { get; set; }
     }
 }

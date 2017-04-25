@@ -10,7 +10,7 @@ using FluentMigrator.Runner.Processors.SQLite;
 
 namespace NzbDrone.Core.Datastore.Migration.Framework
 {
-    public class NzbDroneSqliteProcessor : SqliteProcessor
+    public class NzbDroneSqliteProcessor : SQLiteProcessor
     {
         public NzbDroneSqliteProcessor(IDbConnection connection, IMigrationGenerator generator, IAnnouncer announcer, IMigrationProcessorOptions options, FluentMigrator.Runner.Processors.IDbFactory factory)
             : base(connection, generator, announcer, options, factory)
@@ -18,13 +18,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
 
         }
 
-        public override bool SupportsTransactions
-        {
-            get
-            {
-                return true;
-            }
-        }
+        public override bool SupportsTransactions => true;
 
         public override void Process(AlterColumnExpression expression)
         {
@@ -70,7 +64,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
 
         protected virtual TableDefinition GetTableSchema(string tableName)
         {
-            var schemaDumper = new SqliteSchemaDumper(this, Announcer);
+            var schemaDumper = new  SqliteSchemaDumper(this, Announcer);
             var schema = schemaDumper.ReadDbSchema();
 
             return schema.Single(v => v.Name == tableName);
@@ -88,7 +82,7 @@ namespace NzbDrone.Core.Datastore.Migration.Framework
             }
 
             // What is the cleanest way to do this? Add function to Generator?
-            var quoter = new SqliteQuoter();
+            var quoter = new SQLiteQuoter();
             var columnsToTransfer = string.Join(", ", tableDefinition.Columns.Select(c => quoter.QuoteColumnName(c.Name)));
 
             Process(new CreateTableExpression() { TableName = tempTableName, Columns = tableDefinition.Columns.ToList() });

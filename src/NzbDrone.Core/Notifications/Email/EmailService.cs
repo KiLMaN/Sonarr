@@ -44,26 +44,18 @@ namespace NzbDrone.Core.Notifications.Email
             catch(Exception ex)
             {
                 _logger.Error("Error sending email. Subject: {0}", email.Subject);
-                _logger.DebugException(ex.Message, ex);
+                _logger.Debug(ex, ex.Message);
+                throw;
             }
         }
 
         private void Send(MailMessage email, string server, int port, bool ssl, NetworkCredential credentials)
         {
-            try
-            {
-                var smtp = new SmtpClient(server, port);
-                smtp.EnableSsl = ssl;
-                smtp.Credentials = credentials;
+            var smtp = new SmtpClient(server, port);
+            smtp.EnableSsl = ssl;
+            smtp.Credentials = credentials;
 
-                smtp.Send(email);
-            }
-
-            catch (Exception ex)
-            {
-                _logger.ErrorException("There was an error sending an email.", ex);
-                throw;
-            }
+            smtp.Send(email);
         }
 
         public ValidationFailure Test(EmailSettings settings)
@@ -76,7 +68,7 @@ namespace NzbDrone.Core.Notifications.Email
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Unable to send test email: " + ex.Message, ex);
+                _logger.Error(ex, "Unable to send test email");
                 return new ValidationFailure("Server", "Unable to send test email");
             }
 

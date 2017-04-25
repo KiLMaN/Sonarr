@@ -39,11 +39,11 @@ namespace NzbDrone.Common.EnvironmentInfo
         {
             try
             {
-                _diskProvider.SetPermissions(_appFolderInfo.AppDataFolder, WellKnownSidType.WorldSid, FileSystemRights.FullControl, AccessControlType.Allow);
+                _diskProvider.SetPermissions(_appFolderInfo.AppDataFolder, WellKnownSidType.WorldSid, FileSystemRights.Modify, AccessControlType.Allow);
             }
             catch (Exception ex)
             {
-                _logger.WarnException("Coudn't set app folder permission", ex);
+                _logger.Warn(ex, "Coudn't set app folder permission");
             }
         }
     }

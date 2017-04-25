@@ -2,17 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
-using NzbDrone.Common;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Messaging.Commands;
-using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Queue;
 using NzbDrone.Core.Tv;
-using NzbDrone.Core.Tv.Events;
 
 namespace NzbDrone.Core.IndexerSearch
 {
@@ -37,7 +34,7 @@ namespace NzbDrone.Core.IndexerSearch
             _logger = logger;
         }
 
-        private void SearchForMissingEpisodes(List<Episode> episodes)
+        private void SearchForMissingEpisodes(List<Episode> episodes, bool userInvokedSearch)
         {
             _logger.ProgressInfo("Performing missing search for {0} episodes", episodes.Count);
             var downloadedCount = 0;
@@ -50,12 +47,28 @@ namespace NzbDrone.Core.IndexerSearch
 
                     if (season.Count() > 1)
                     {
-                        decisions = _nzbSearchService.SeasonSearch(series.Key, season.Key, true);
+                        try
+                        {
+                            decisions = _nzbSearchService.SeasonSearch(series.Key, season.Key, true, userInvokedSearch);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "Unable to search for missing episodes in season {0} of [{1}]", season.Key, series.Key);
+                            continue;
+                        }
                     }
 
                     else
                     {
-                        decisions = _nzbSearchService.EpisodeSearch(season.First());
+                        try
+                        {
+                            decisions = _nzbSearchService.EpisodeSearch(season.First(), userInvokedSearch);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "Unable to search for missing episode: [{0}]", season.First());
+                            continue;
+                        }
                     }
 
                     var processed = _processDownloadDecisions.ProcessDecisions(decisions);
@@ -71,7 +84,7 @@ namespace NzbDrone.Core.IndexerSearch
         {
             foreach (var episodeId in message.EpisodeIds)
             {
-                var decisions = _nzbSearchService.EpisodeSearch(episodeId);
+                var decisions = _nzbSearchService.EpisodeSearch(episodeId, message.Trigger == CommandTrigger.Manual);
                 var processed = _processDownloadDecisions.ProcessDecisions(decisions);
 
                 _logger.ProgressInfo("Episode search completed. {0} reports downloaded.", processed.Grabbed.Count);
@@ -110,7 +123,7 @@ namespace NzbDrone.Core.IndexerSearch
             var queue = _queueService.GetQueue().Select(q => q.Episode.Id);
             var missing = episodes.Where(e => !queue.Contains(e.Id)).ToList();
 
-            SearchForMissingEpisodes(missing);
+            SearchForMissingEpisodes(missing, message.Trigger == CommandTrigger.Manual);
         }
     }
 }

@@ -15,22 +15,17 @@ namespace NzbDrone.Core.Indexers.Newznab
     {
         private readonly INewznabCapabilitiesProvider _capabilitiesProvider;
 
-        public override string Name
-        {
-            get
-            {
-                return "Newznab";
-            }
-        }
+        public override string Name => "Newznab";
 
-        public override DownloadProtocol Protocol { get { return DownloadProtocol.Usenet; } }
-        public override int PageSize { get { return 100; } }
+        public override DownloadProtocol Protocol => DownloadProtocol.Usenet;
+
+        public override int PageSize => _capabilitiesProvider.GetCapabilities(Settings).DefaultPageSize;
 
         public override IIndexerRequestGenerator GetRequestGenerator()
         {
             return new NewznabRequestGenerator(_capabilitiesProvider)
             {
-                PageSize = PageSize, 
+                PageSize = PageSize,
                 Settings = Settings
             };
         }
@@ -44,14 +39,19 @@ namespace NzbDrone.Core.Indexers.Newznab
         {
             get
             {
-                yield return GetDefinition("Nzbs.org", GetSettings("http://nzbs.org", 5000));
-                yield return GetDefinition("NZBFinder.ws", GetSettings("https://www.nzbfinder.ws"));
+                yield return GetDefinition("DOGnzb", GetSettings("https://api.dognzb.cr"));
+                yield return GetDefinition("DrunkenSlug", GetSettings("https://api.drunkenslug.com"));
                 yield return GetDefinition("Nzb.su", GetSettings("https://api.nzb.su"));
-                yield return GetDefinition("Dognzb.cr", GetSettings("https://api.dognzb.cr"));
-                yield return GetDefinition("OZnzb.com", GetSettings("https://api.oznzb.com"));
-                yield return GetDefinition("nzbplanet.net", GetSettings("https://nzbplanet.net"));
+                yield return GetDefinition("NZBCat", GetSettings("https://nzb.cat"));
+                yield return GetDefinition("NZBFinder.ws", GetSettings("https://nzbfinder.ws", 5010, 5030, 5040, 5045));
                 yield return GetDefinition("NZBgeek", GetSettings("https://api.nzbgeek.info"));
+                yield return GetDefinition("nzbplanet.net", GetSettings("https://api.nzbplanet.net"));
+                yield return GetDefinition("Nzbs.org", GetSettings("http://nzbs.org", 5000));
+                yield return GetDefinition("omgwtfnzbs", GetSettings("https://api.omgwtfnzbs.me"));
+                yield return GetDefinition("OZnzb.com", GetSettings("https://api.oznzb.com"));
                 yield return GetDefinition("PFmonkey", GetSettings("https://www.pfmonkey.com"));
+                yield return GetDefinition("SimplyNZBs", GetSettings("https://simplynzbs.com"));
+                yield return GetDefinition("Usenet Crawler", GetSettings("https://www.usenet-crawler.com"));
             }
         }
 
@@ -117,12 +117,10 @@ namespace NzbDrone.Core.Indexers.Newznab
             }
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to connect to indexer: " + ex.Message, ex);
+                _logger.Warn(ex, "Unable to connect to indexer: " + ex.Message);
 
                 return new ValidationFailure(string.Empty, "Unable to connect to indexer, check the log for more details");
             }
-
-            return null;
         }
     }
 }

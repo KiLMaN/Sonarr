@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using NLog;
 using Nancy;
@@ -21,7 +21,7 @@ namespace NzbDrone.Api.Frontend.Mappers
             _diskProvider = diskProvider;
             _logger = logger;
 
-            if (!RuntimeInfoBase.IsProduction)
+            if (!RuntimeInfo.IsProduction)
             {
                 _caseSensitive = StringComparison.OrdinalIgnoreCase;
             }
@@ -38,7 +38,7 @@ namespace NzbDrone.Api.Frontend.Mappers
             if (_diskProvider.FileExists(filePath, _caseSensitive))
             {
                 var response = new StreamResponse(() => GetContentStream(filePath), MimeTypes.GetMimeType(filePath));
-                return response;
+                return new MaterialisingResponse(response);
             }
 
             _logger.Warn("File {0} not found", filePath);

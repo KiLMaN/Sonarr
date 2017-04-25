@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Model;
 
 namespace NzbDrone.Common.Processes
@@ -98,9 +99,9 @@ namespace NzbDrone.Common.Processes
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo(url)
-                    {
-                        UseShellExecute = true
-                    }
+                {
+                    UseShellExecute = true
+                }
             };
 
             process.Start();
@@ -108,7 +109,7 @@ namespace NzbDrone.Common.Processes
 
         public Process Start(string path, string args = null, StringDictionary environmentVariables = null, Action<string> onOutputDataReceived = null, Action<string> onErrorDataReceived = null)
         {
-            if (OsInfo.IsMonoRuntime && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
+            if (PlatformInfo.IsMono && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
             {
                 args = GetMonoArgs(path, args);
                 path = "mono";
@@ -129,16 +130,34 @@ namespace NzbDrone.Common.Processes
             {
                 foreach (DictionaryEntry environmentVariable in environmentVariables)
                 {
-                    startInfo.EnvironmentVariables.Add(environmentVariable.Key.ToString(), environmentVariable.Value.ToString());
+                    try
+                    {
+                        _logger.Trace("Setting environment variable '{0}' to '{1}'", environmentVariable.Key, environmentVariable.Value);
+                        startInfo.EnvironmentVariables.Add(environmentVariable.Key.ToString(), environmentVariable.Value.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        if (environmentVariable.Value == null)
+                        {
+                            _logger.Error(e, "Unable to set environment variable '{0}', value is null", environmentVariable.Key);
+                        }
+
+                        else
+                        {
+                            _logger.Error(e, "Unable to set environment variable '{0}'", environmentVariable.Key);
+                        }
+
+                        throw;
+                    }
                 }
             }
 
             logger.Debug("Starting {0} {1}", path, args);
 
             var process = new Process
-                {
-                    StartInfo = startInfo
-                };
+            {
+                StartInfo = startInfo
+            };
 
             process.OutputDataReceived += (sender, eventArgs) =>
             {
@@ -174,7 +193,7 @@ namespace NzbDrone.Common.Processes
 
         public Process SpawnNewProcess(string path, string args = null, StringDictionary environmentVariables = null)
         {
-            if (OsInfo.IsMonoRuntime && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
+            if (PlatformInfo.IsMono && path.EndsWith(".exe", StringComparison.InvariantCultureIgnoreCase))
             {
                 args = GetMonoArgs(path, args);
                 path = "mono";
@@ -292,7 +311,7 @@ namespace NzbDrone.Common.Processes
             }
             catch (Win32Exception e)
             {
-                _logger.WarnException("Couldn't get process info for " + process.ProcessName, e);
+                _logger.Warn(e, "Couldn't get process info for " + process.ProcessName);
             }
 
             return processInfo;

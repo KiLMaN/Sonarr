@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -55,6 +54,11 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
         private void GivenProper()
         {
             _episodeFile.Quality.Revision.Version = 2;
+        }
+
+        private void GivenReal()
+        {
+            _episodeFile.Quality.Revision.Real = 1;
         }
 
         [Test]
@@ -205,6 +209,16 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
 
             Subject.BuildFileName(new List<Episode> { _episode1 }, _series, _episodeFile)
                    .Should().Be("Proper");
+        }
+
+        [Test]
+        public void should_replace_quality_real_with_real()
+        {
+            _namingConfig.StandardEpisodeFormat = "{Quality Real}";
+            GivenReal();
+
+            Subject.BuildFileName(new List<Episode> { _episode1 }, _series, _episodeFile)
+                   .Should().Be("REAL");
         }
 
         [Test]
@@ -617,6 +631,16 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
                    .Should().Be("South Park - S15E06 [HDTV-720p Proper]");
         }
 
+        [Test]
+        public void should_replace_quality_full_with_quality_title_and_real_when_a_real()
+        {
+            _namingConfig.StandardEpisodeFormat = "{Series Title} - S{season:00}E{episode:00} [{Quality Full}]";
+            GivenReal();
+
+            Subject.BuildFileName(new List<Episode> { _episode1 }, _series, _episodeFile)
+                   .Should().Be("South Park - S15E06 [HDTV-720p REAL]");
+        }
+
         [TestCase(' ')]
         [TestCase('-')]
         [TestCase('.')]
@@ -685,6 +709,18 @@ namespace NzbDrone.Core.Test.OrganizerTests.FileNameBuilderTests
 
             Subject.BuildFileName(new List<Episode> { _episode1 }, _series, _episodeFile)
                    .Should().Be("Sonarr");
+        }
+
+        [TestCase("{Episode Title}{-Release Group}", "City Sushi")]
+        [TestCase("{Episode Title}{ Release Group}", "City Sushi")]
+        [TestCase("{Episode Title}{ [Release Group]}", "City Sushi")]
+        public void should_not_use_Sonarr_as_release_group_if_pattern_has_separator(string pattern, string expectedFileName)
+        {
+            _episodeFile.ReleaseGroup = null;
+            _namingConfig.StandardEpisodeFormat = pattern;
+
+            Subject.BuildFileName(new List<Episode> { _episode1 }, _series, _episodeFile)
+                   .Should().Be(expectedFileName);
         }
 
         [TestCase("0SEC")]

@@ -6,8 +6,8 @@ using FluentValidation.Results;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
-using NzbDrone.Common.TPL;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Http.CloudFlare;
 using NzbDrone.Core.Indexers.Exceptions;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser;
@@ -21,14 +21,14 @@ namespace NzbDrone.Core.Indexers
     {
         protected const int MaxNumResultsPerQuery = 1000;
 
-        private readonly IHttpClient _httpClient;
+        protected readonly IHttpClient _httpClient;
 
-        public override bool SupportsRss { get { return true; } }
-        public override bool SupportsSearch { get { return true; } }
-        public bool SupportsPaging { get { return PageSize > 0; } }
+        public override bool SupportsRss => true;
+        public override bool SupportsSearch => true;
+        public bool SupportsPaging => PageSize > 0;
 
-        public virtual int PageSize { get { return 0; } }
-        public virtual TimeSpan RateLimit { get { return TimeSpan.FromSeconds(2); } }
+        public virtual int PageSize => 0;
+        public virtual TimeSpan RateLimit => TimeSpan.FromSeconds(2);
 
         public abstract IIndexerRequestGenerator GetRequestGenerator();
         public abstract IParseIndexerResponse GetParser();
@@ -46,9 +46,7 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetRecentRequests(), true);
+            return FetchReleases(g => g.GetRecentRequests(), true);
         }
 
         public override IList<ReleaseInfo> Fetch(SingleEpisodeSearchCriteria searchCriteria)
@@ -58,9 +56,7 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetSearchRequests(searchCriteria));
+            return FetchReleases(g => g.GetSearchRequests(searchCriteria));
         }
 
         public override IList<ReleaseInfo> Fetch(SeasonSearchCriteria searchCriteria)
@@ -70,9 +66,7 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetSearchRequests(searchCriteria));
+            return FetchReleases(g => g.GetSearchRequests(searchCriteria));
         }
 
         public override IList<ReleaseInfo> Fetch(DailyEpisodeSearchCriteria searchCriteria)
@@ -82,9 +76,7 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetSearchRequests(searchCriteria));
+            return FetchReleases(g => g.GetSearchRequests(searchCriteria));
         }
 
         public override IList<ReleaseInfo> Fetch(AnimeEpisodeSearchCriteria searchCriteria)
@@ -94,9 +86,7 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetSearchRequests(searchCriteria));
+            return FetchReleases(g => g.GetSearchRequests(searchCriteria));
         }
 
         public override IList<ReleaseInfo> Fetch(SpecialEpisodeSearchCriteria searchCriteria)
@@ -106,20 +96,21 @@ namespace NzbDrone.Core.Indexers
                 return new List<ReleaseInfo>();
             }
 
-            var generator = GetRequestGenerator();
-
-            return FetchReleases(generator.GetSearchRequests(searchCriteria));
+            return FetchReleases(g => g.GetSearchRequests(searchCriteria));
         }
 
-        protected virtual IList<ReleaseInfo> FetchReleases(IndexerPageableRequestChain pageableRequestChain, bool isRecent = false)
+        protected virtual IList<ReleaseInfo> FetchReleases(Func<IIndexerRequestGenerator, IndexerPageableRequestChain> pageableRequestChainSelector, bool isRecent = false)
         {
             var releases = new List<ReleaseInfo>();
             var url = string.Empty;
 
-            var parser = GetParser();
-
             try
             {
+                var generator = GetRequestGenerator();
+                var parser = GetParser();
+
+                var pageableRequestChain = pageableRequestChainSelector(generator);
+
                 var fullyUpdated = false;
                 ReleaseInfo lastReleaseInfo = null;
                 if (isRecent)
@@ -137,7 +128,7 @@ namespace NzbDrone.Core.Indexers
 
                         foreach (var request in pageableRequest)
                         {
-                            url = request.Url.ToString();
+                            url = request.Url.FullUri;
 
                             var page = FetchPage(request, parser);
 
@@ -202,7 +193,16 @@ namespace NzbDrone.Core.Indexers
             }
             catch (WebException webException)
             {
-                _indexerStatusService.RecordFailure(Definition.Id);
+                if (webException.Status == WebExceptionStatus.NameResolutionFailure ||
+                    webException.Status == WebExceptionStatus.ConnectFailure)
+                {
+                    _indexerStatusService.RecordConnectionFailure(Definition.Id);
+                }
+                else
+                {
+                    _indexerStatusService.RecordFailure(Definition.Id);
+                }
+
                 if (webException.Message.Contains("502") || webException.Message.Contains("503") ||
                     webException.Message.Contains("timed out"))
                 {
@@ -213,18 +213,22 @@ namespace NzbDrone.Core.Indexers
                     _logger.Warn("{0} {1} {2}", this, url, webException.Message);
                 }
             }
-            catch (HttpException httpException)
+            catch (TooManyRequestsException ex)
             {
-                if ((int)httpException.Response.StatusCode == 429)
+                if (ex.RetryAfter != TimeSpan.Zero)
                 {
-                    _indexerStatusService.RecordFailure(Definition.Id, TimeSpan.FromHours(1));
-                    _logger.Warn("API Request Limit reached for {0}", this);
+                    _indexerStatusService.RecordFailure(Definition.Id, ex.RetryAfter);
                 }
                 else
                 {
-                    _indexerStatusService.RecordFailure(Definition.Id);
-                    _logger.Warn("{0} {1}", this, httpException.Message);
+                    _indexerStatusService.RecordFailure(Definition.Id, TimeSpan.FromHours(1));
                 }
+                _logger.Warn("API Request Limit reached for {0}", this);
+            }
+            catch (HttpException ex)
+            {
+                _indexerStatusService.RecordFailure(Definition.Id);
+                _logger.Warn("{0} {1}", this, ex.Message);
             }
             catch (RequestLimitReachedException)
             {
@@ -236,17 +240,29 @@ namespace NzbDrone.Core.Indexers
                 _indexerStatusService.RecordFailure(Definition.Id);
                 _logger.Warn("Invalid API Key for {0} {1}", this, url);
             }
+            catch (CloudFlareCaptchaException ex)
+            {
+                _indexerStatusService.RecordFailure(Definition.Id);
+                ex.WithData("FeedUrl", url);
+                if (ex.IsExpired)
+                {
+                    _logger.Error(ex, "Expired CAPTCHA token for {0}, please refresh in indexer settings.", this);
+                }
+                else
+                {
+                    _logger.Error(ex, "CAPTCHA token required for {0}, check indexer settings.", this);
+                }
+            }
             catch (IndexerException ex)
             {
                 _indexerStatusService.RecordFailure(Definition.Id);
-                var message = string.Format("{0} - {1}", ex.Message, url);
-                _logger.WarnException(message, ex);
+                _logger.Warn(ex, "{0}", url);
             }
-            catch (Exception feedEx)
+            catch (Exception ex)
             {
                 _indexerStatusService.RecordFailure(Definition.Id);
-                feedEx.Data.Add("FeedUrl", url);
-                _logger.ErrorException("An error occurred while processing feed. " + url, feedEx);
+                ex.WithData("FeedUrl", url);
+                _logger.Error(ex, "An error occurred while processing feed. {0}", url);
             }
 
             return CleanupReleases(releases);
@@ -266,7 +282,7 @@ namespace NzbDrone.Core.Indexers
 
         protected virtual IndexerResponse FetchIndexerResponse(IndexerRequest request)
         {
-            _logger.Debug("Downloading Feed " + request.Url);
+            _logger.Debug("Downloading Feed " + request.HttpRequest.ToString(false));
 
             if (request.HttpRequest.RateLimit < RateLimit)
             {
@@ -304,21 +320,32 @@ namespace NzbDrone.Core.Indexers
             {
                 _logger.Warn("Request limit reached");
             }
+            catch (CloudFlareCaptchaException ex)
+            {
+                if (ex.IsExpired)
+                {
+                    return new ValidationFailure("CaptchaToken", "CloudFlare CAPTCHA token expired, please Refresh.");
+                }
+                else
+                {
+                    return new ValidationFailure("CaptchaToken", "Site protected by CloudFlare CAPTCHA. Valid CAPTCHA token required.");
+                }
+            }
             catch (UnsupportedFeedException ex)
             {
-                _logger.WarnException("Indexer feed is not supported", ex);
+                _logger.Warn(ex, "Indexer feed is not supported");
 
                 return new ValidationFailure(string.Empty, "Indexer feed is not supported: " + ex.Message);
             }
             catch (IndexerException ex)
             {
-                _logger.WarnException("Unable to connect to indexer", ex);
+                _logger.Warn(ex, "Unable to connect to indexer");
 
                 return new ValidationFailure(string.Empty, "Unable to connect to indexer. " + ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to connect to indexer", ex);
+                _logger.Warn(ex, "Unable to connect to indexer");
 
                 return new ValidationFailure(string.Empty, "Unable to connect to indexer, check the log for more details");
             }

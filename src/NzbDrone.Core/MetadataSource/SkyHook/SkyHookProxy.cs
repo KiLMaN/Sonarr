@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using NLog;
+using NzbDrone.Common.Cloud;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Exceptions;
@@ -16,20 +17,23 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
     {
         private readonly IHttpClient _httpClient;
         private readonly Logger _logger;
-        private readonly HttpRequestBuilder _requestBuilder;
 
-        public SkyHookProxy(IHttpClient httpClient, Logger logger)
+        private readonly IHttpRequestBuilderFactory _requestBuilder;
+
+        public SkyHookProxy(IHttpClient httpClient, ISonarrCloudRequestBuilder requestBuilder, Logger logger)
         {
             _httpClient = httpClient;
+             _requestBuilder = requestBuilder.SkyHookTvdb;
             _logger = logger;
-
-            _requestBuilder = new HttpRequestBuilder("http://skyhook.sonarr.tv/v1/tvdb/{route}/en/");
         }
 
         public Tuple<Series, List<Episode>> GetSeriesInfo(int tvdbSeriesId)
         {
-            var httpRequest = _requestBuilder.Build(tvdbSeriesId.ToString());
-            httpRequest.AddSegment("route", "shows");
+            var httpRequest = _requestBuilder.Create()
+                                             .SetSegment("route", "shows")
+                                             .Resource(tvdbSeriesId.ToString())
+                                             .Build();
+
             httpRequest.AllowAutoRedirect = true;
             httpRequest.SuppressHttpError = true;
 
@@ -80,10 +84,10 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                     }
                 }
 
-                var term = System.Web.HttpUtility.UrlEncode((title.ToLower().Trim()));
-                var httpRequest = _requestBuilder.Build("?term={term}");
-                httpRequest.AddSegment("route", "search");
-                httpRequest.AddSegment("term", term);
+                var httpRequest = _requestBuilder.Create()
+                                                 .SetSegment("route", "search")
+                                                 .AddQueryParam("term", title.ToLower().Trim())
+                                                 .Build();
 
                 var httpResponse = _httpClient.Get<List<ShowResource>>(httpRequest);
 
@@ -95,7 +99,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
             catch (Exception ex)
             {
-                _logger.WarnException(ex.Message, ex);
+                _logger.Warn(ex, ex.Message);
                 throw new SkyHookException("Search for '{0}' failed. Invalid response received from SkyHook.", title);
             }
         }
@@ -153,6 +157,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             series.Actors = show.Actors.Select(MapActors).ToList();
             series.Seasons = show.Seasons.Select(MapSeason).ToList();
             series.Images = show.Images.Select(MapImage).ToList();
+            series.Monitored = true;
 
             return series;
         }
@@ -204,7 +209,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             return new Season
             {
                 SeasonNumber = seasonResource.SeasonNumber,
-                Images = seasonResource.Images.Select(MapImage).ToList()
+                Images = seasonResource.Images.Select(MapImage).ToList(),
+                Monitored = seasonResource.SeasonNumber > 0
             };
         }
 

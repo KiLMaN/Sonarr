@@ -2,17 +2,13 @@
 using System.Linq;
 using NLog;
 using NLog.Config;
-using NLog.Targets;
-using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Configuration.Events;
-using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.Instrumentation
 {
-    public class ReconfigureLogging : IHandleAsync<ConfigFileSavedEvent>,
-                                      IHandle<ApplicationStartedEvent>
+    public class ReconfigureLogging : IHandleAsync<ConfigFileSavedEvent>
     {
         private readonly IConfigFileProvider _configFileProvider;
 
@@ -28,22 +24,22 @@ namespace NzbDrone.Core.Instrumentation
             var rules = LogManager.Configuration.LoggingRules;
 
             //Console
-            var consoleLoggerRule = rules.SingleOrDefault(s => s.Targets.Any(t => t is ColoredConsoleTarget));
+            SetMinimumLogLevel(rules, "consoleLogger", minimumLogLevel);
 
-            if (consoleLoggerRule != null)
-            {
-                consoleLoggerRule.EnableLoggingForLevel(LogLevel.Trace);
-                SetMinimumLogLevel(consoleLoggerRule, minimumLogLevel);
-            }
-            
             //Log Files
-            var rollingFileLoggerRule = rules.Single(s => s.Targets.Any(t => t is NzbDroneFileTarget));
-            rollingFileLoggerRule.EnableLoggingForLevel(LogLevel.Trace);
-            
-            SetMinimumLogLevel(rollingFileLoggerRule, minimumLogLevel);
-            SetMaxArchiveFiles(rollingFileLoggerRule, minimumLogLevel);
+            SetMinimumLogLevel(rules, "appFileInfo", minimumLogLevel <= LogLevel.Info ? LogLevel.Info : LogLevel.Off);
+            SetMinimumLogLevel(rules, "appFileDebug", minimumLogLevel <= LogLevel.Debug ? LogLevel.Debug : LogLevel.Off);
+            SetMinimumLogLevel(rules, "appFileTrace", minimumLogLevel <= LogLevel.Trace ? LogLevel.Trace : LogLevel.Off);
 
             LogManager.ReconfigExistingLoggers();
+        }
+
+        private void SetMinimumLogLevel(IList<LoggingRule> rules, string target, LogLevel minimumLogLevel)
+        {
+            foreach (var rule in rules.Where(v => v.Targets.Any(t => t.Name == target)))
+            {
+                SetMinimumLogLevel(rule, minimumLogLevel);
+            }
         }
 
         private void SetMinimumLogLevel(LoggingRule rule, LogLevel minimumLogLevel)
@@ -62,23 +58,6 @@ namespace NzbDrone.Core.Instrumentation
             }
         }
 
-        private void SetMaxArchiveFiles(LoggingRule rule, LogLevel minimumLogLevel)
-        {
-            var target = rule.Targets.Single(t => t is NzbDroneFileTarget) as NzbDroneFileTarget;
-
-            if (target == null) return;
-
-            if (minimumLogLevel >= LogLevel.Info)
-            {
-                target.MaxArchiveFiles = 5;
-            }
-
-            else
-            {
-                target.MaxArchiveFiles = 50;
-            }
-        }
-
         private List<LogLevel> GetLogLevels()
         {
             return new List<LogLevel>
@@ -93,11 +72,6 @@ namespace NzbDrone.Core.Instrumentation
         }
 
         public void HandleAsync(ConfigFileSavedEvent message)
-        {
-            Reconfigure();
-        }
-
-        public void Handle(ApplicationStartedEvent message)
         {
             Reconfigure();
         }

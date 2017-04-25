@@ -44,7 +44,7 @@ namespace NzbDrone.Common.Disk
             {
                 return OsPathKind.Unix;
             }
-            if (path.Contains(':') || path.Contains('\\'))
+            if (HasWindowsDriveLetter(path) || path.Contains('\\'))
             {
                 return OsPathKind.Windows;
             }
@@ -53,6 +53,15 @@ namespace NzbDrone.Common.Disk
                 return OsPathKind.Unix;
             }
             return OsPathKind.Unknown;
+        }
+
+        private static bool HasWindowsDriveLetter(string path)
+        {
+            if (path.Length < 2)    return false;
+            if (!char.IsLetter(path[0]) || path[1] != ':') return false;
+            if (path.Length > 2 && path[2] != '\\' && path[2] != '/') return false;
+
+            return true;
         }
 
         private static string FixSlashes(string path, OsPathKind kind)
@@ -68,28 +77,13 @@ namespace NzbDrone.Common.Disk
             return path;
         }
 
-        public OsPathKind Kind
-        {
-            get { return _kind; }
-        }
+        public OsPathKind Kind => _kind;
 
-        public bool IsWindowsPath
-        {
-            get { return _kind == OsPathKind.Windows; }
-        }
+        public bool IsWindowsPath => _kind == OsPathKind.Windows;
 
-        public bool IsUnixPath
-        {
-            get { return _kind == OsPathKind.Unix; }
-        }
+        public bool IsUnixPath => _kind == OsPathKind.Unix;
 
-        public bool IsEmpty
-        {
-            get
-            {
-                return _path.IsNullOrWhiteSpace();
-            }
-        }
+        public bool IsEmpty => _path.IsNullOrWhiteSpace();
 
         public bool IsRooted
         {
@@ -97,7 +91,7 @@ namespace NzbDrone.Common.Disk
             {
                 if (IsWindowsPath)
                 {
-                    return _path.StartsWith(@"\\") || _path.Contains(':');
+                    return _path.StartsWith(@"\\") || HasWindowsDriveLetter(_path);
                 }
                 if (IsUnixPath)
                 {
@@ -123,13 +117,7 @@ namespace NzbDrone.Common.Disk
             }
         }
 
-        public string FullPath
-        {
-            get
-            {
-                return _path;
-            }
-        }
+        public string FullPath => _path;
 
         public string FileName
         {
@@ -153,13 +141,7 @@ namespace NzbDrone.Common.Disk
             }
         }
 
-        public bool IsValid
-        {
-            get
-            {
-                return _path.IsPathValid();
-            }
-        }
+        public bool IsValid => _path.IsPathValid();
 
         private int GetFileNameIndex()
         {

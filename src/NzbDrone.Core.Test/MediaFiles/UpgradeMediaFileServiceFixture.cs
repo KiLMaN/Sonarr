@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.IO;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Marr.Data;
@@ -31,10 +32,13 @@ namespace NzbDrone.Core.Test.MediaFiles
                 .CreateNew()
                 .Build();
 
-
             Mocker.GetMock<IDiskProvider>()
                 .Setup(c => c.FileExists(It.IsAny<string>()))
                 .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(c => c.GetParentFolder(It.IsAny<string>()))
+                .Returns<string>(c => Path.GetDirectoryName(c));
         }
 
         private void GivenSingleEpisodeWithSingleEpisodeFile()
@@ -95,7 +99,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Subject.UpgradeEpisodeFile(_episodeFile, _localEpisode);
 
-            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
         }
 
         [Test]
@@ -105,7 +109,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Subject.UpgradeEpisodeFile(_episodeFile, _localEpisode);
 
-            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
         }
 
         [Test]
@@ -115,7 +119,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Subject.UpgradeEpisodeFile(_episodeFile, _localEpisode);
 
-            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>()), Times.Exactly(2));
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
         }
 
         [Test]
@@ -153,7 +157,7 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             Subject.UpgradeEpisodeFile(_episodeFile, _localEpisode);
 
-            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>()), Times.Never());
+            Mocker.GetMock<IRecycleBinProvider>().Verify(v => v.DeleteFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
         }
 
         [Test]

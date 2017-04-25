@@ -25,15 +25,18 @@ namespace NzbDrone.Api.ManualImport
             var downloadIdQuery = Request.Query.downloadId;
             var downloadId = (string)downloadIdQuery.Value;
 
-            return ToListResource(_manualImportService.GetMediaFiles(folder, downloadId)).Select(AddQualityWeight).ToList();
+            return _manualImportService.GetMediaFiles(folder, downloadId).ToResource().Select(AddQualityWeight).ToList();
         }
 
         private ManualImportResource AddQualityWeight(ManualImportResource item)
         {
-            item.QualityWeight = Quality.DefaultQualityDefinitions.Single(q => q.Quality == item.Quality.Quality).Weight;
-            item.QualityWeight += item.Quality.Revision.Real * 10;
-            item.QualityWeight += item.Quality.Revision.Version;
-
+            if (item.Quality != null)
+            {
+                item.QualityWeight = Quality.DefaultQualityDefinitions.Single(q => q.Quality == item.Quality.Quality).Weight;
+                item.QualityWeight += item.Quality.Revision.Real * 10;
+                item.QualityWeight += item.Quality.Revision.Version;
+            }
+           
             return item;
         }
     }

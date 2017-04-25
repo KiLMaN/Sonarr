@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Tv
             _logger.ProgressInfo("Updating Info for {0}", series.Title);
 
             Tuple<Series, List<Episode>> tuple;
-            
+
             try
             {
                 tuple = _seriesInfo.GetSeriesInfo(series.TvdbId);
@@ -102,7 +102,7 @@ namespace NzbDrone.Core.Tv
             }
             catch (Exception e)
             {
-                _logger.WarnException("Couldn't update series path for " + series.Path, e);
+                _logger.Warn(e, "Couldn't update series path for " + series.Path);
             }
 
             series.Seasons = UpdateSeasons(series, seriesInfo);
@@ -116,9 +116,11 @@ namespace NzbDrone.Core.Tv
 
         private List<Season> UpdateSeasons(Series series, Series seriesInfo)
         {
-            foreach (var season in seriesInfo.Seasons)
+            var seasons = seriesInfo.Seasons.DistinctBy(s => s.SeasonNumber).ToList();
+
+            foreach (var season in seasons)
             {
-                var existingSeason = series.Seasons.SingleOrDefault(s => s.SeasonNumber == season.SeasonNumber);
+                var existingSeason = series.Seasons.FirstOrDefault(s => s.SeasonNumber == season.SeasonNumber);
 
                 //Todo: Should this should use the previous season's monitored state?
                 if (existingSeason == null)
@@ -139,12 +141,12 @@ namespace NzbDrone.Core.Tv
                 }
             }
 
-            return seriesInfo.Seasons;
+            return seasons;
         }
 
         public void Execute(RefreshSeriesCommand message)
         {
-            _eventAggregator.PublishEvent(new SeriesRefreshStartingEvent());
+            _eventAggregator.PublishEvent(new SeriesRefreshStartingEvent(message.Trigger == CommandTrigger.Manual));
 
             if (message.SeriesId.HasValue)
             {
@@ -165,7 +167,7 @@ namespace NzbDrone.Core.Tv
                         }
                         catch (Exception e)
                         {
-                            _logger.ErrorException("Couldn't refresh info for {0}".Inject(series), e);
+                            _logger.Error(e, "Couldn't refresh info for {0}", series);
                         }
                     }
 
@@ -178,7 +180,7 @@ namespace NzbDrone.Core.Tv
                         }
                         catch (Exception e)
                         {
-                            _logger.ErrorException("Couldn't rescan series {0}".Inject(series), e);
+                            _logger.Error(e, "Couldn't rescan series {0}", series);
                         }
                     }
                 }

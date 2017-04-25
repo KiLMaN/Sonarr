@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
@@ -14,7 +13,7 @@ namespace NzbDrone.Core.Indexers.Omgwtfnzbs
 
         public OmgwtfnzbsRequestGenerator()
         {
-            BaseUrl = "https://rss.omgwtfnzbs.org/rss-download.php";
+            BaseUrl = "https://rss.omgwtfnzbs.me/rss-download.php";
         }
 
         public virtual IndexerPageableRequestChain GetRecentRequests()

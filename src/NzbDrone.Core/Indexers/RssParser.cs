@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Indexers.Exceptions;
 using NzbDrone.Core.Parser.Model;
@@ -16,6 +18,8 @@ namespace NzbDrone.Core.Indexers
 {
     public class RssParser : IParseIndexerResponse
     {
+        private static readonly Regex ReplaceEntities = new Regex("&[a-z]+;", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         protected readonly Logger _logger;
 
         // Use the 'guid' element content as InfoUrl.
@@ -27,6 +31,8 @@ namespace NzbDrone.Core.Indexers
 
         // Parse "Size: 1.3 GB" or "1.3 GB" parts in the description element and use that as Size.
         public bool ParseSizeInDescription { get; set; }
+
+        public string PreferredEnclosureMimeType { get; set; }
 
         private IndexerResponse _indexerResponse;
 
@@ -57,10 +63,17 @@ namespace NzbDrone.Core.Indexers
 
                     releases.AddIfNotNull(reportInfo);
                 }
+                catch (UnsupportedFeedException itemEx)
+                {
+                    itemEx.WithData("FeedUrl", indexerResponse.Request.Url);
+                    itemEx.WithData("ItemTitle", item.Title());
+                    throw;
+                }
                 catch (Exception itemEx)
                 {
-                    itemEx.Data.Add("Item", item.Title());
-                    _logger.ErrorException("An error occurred while processing feed item from " + indexerResponse.Request.Url, itemEx);
+                    itemEx.WithData("FeedUrl", indexerResponse.Request.Url);
+                    itemEx.WithData("ItemTitle", item.Title());
+                    _logger.Error(itemEx, "An error occurred while processing feed item from {0}", indexerResponse.Request.Url);
                 }
             }
 
@@ -71,7 +84,10 @@ namespace NzbDrone.Core.Indexers
         {
             try
             {
-                using (var xmlTextReader = XmlReader.Create(new StringReader(indexerResponse.Content), new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, IgnoreComments = true }))
+                var content = XmlCleaner.ReplaceEntities(indexerResponse.Content);
+                content = XmlCleaner.ReplaceUnicode(content);
+
+                using (var xmlTextReader = XmlReader.Create(new StringReader(content), new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, IgnoreComments = true }))
                 {
                     return XDocument.Load(xmlTextReader);
                 }
@@ -81,8 +97,7 @@ namespace NzbDrone.Core.Indexers
                 var contentSample = indexerResponse.Content.Substring(0, Math.Min(indexerResponse.Content.Length, 512));
                 _logger.Debug("Truncated response content (originally {0} characters): {1}", indexerResponse.Content.Length, contentSample);
 
-                ex.Data.Add("ContentLength", indexerResponse.Content.Length);
-                ex.Data.Add("ContentSample", contentSample);
+                ex.WithData(indexerResponse.HttpResponse);
 
                 throw;
             }
@@ -95,7 +110,7 @@ namespace NzbDrone.Core.Indexers
 
         protected virtual bool PreProcess(IndexerResponse indexerResponse)
         {
-            if (indexerResponse.HttpResponse.StatusCode != System.Net.HttpStatusCode.OK)
+            if (indexerResponse.HttpResponse.StatusCode != HttpStatusCode.OK)
             {
                 throw new IndexerException(indexerResponse, "Indexer API call resulted in an unexpected StatusCode [{0}]", indexerResponse.HttpResponse.StatusCode);
             }
@@ -172,7 +187,7 @@ namespace NzbDrone.Core.Indexers
         {
             if (UseEnclosureUrl)
             {
-                return ParseUrl((string)item.Element("enclosure").Attribute("url"));
+                return ParseUrl((string)GetEnclosure(item).Attribute("url"));
             }
 
             return ParseUrl((string)item.Element("link"));
@@ -209,7 +224,7 @@ namespace NzbDrone.Core.Indexers
 
         protected virtual long GetEnclosureLength(XElement item)
         {
-            var enclosure = item.Element("enclosure");
+            var enclosure = GetEnclosure(item);
 
             if (enclosure != null)
             {
@@ -217,6 +232,33 @@ namespace NzbDrone.Core.Indexers
             }
 
             return 0;
+        }
+
+        protected virtual XElement GetEnclosure(XElement item)
+        {
+            var enclosures = item.Elements("enclosure").ToArray();
+
+            if (enclosures.Length == 0)
+            {
+                return null;
+            }
+
+            if (enclosures.Length == 1)
+            {
+                return enclosures.First();
+            }
+
+            if (PreferredEnclosureMimeType != null)
+            {
+                var preferredEnclosure = enclosures.FirstOrDefault(v => v.Attribute("type").Value == PreferredEnclosureMimeType);
+
+                if (preferredEnclosure != null)
+                {
+                    return preferredEnclosure;
+                }
+            }
+
+            return item.Elements("enclosure").SingleOrDefault();
         }
 
         protected IEnumerable<XElement> GetItems(XDocument document)
@@ -247,23 +289,18 @@ namespace NzbDrone.Core.Indexers
 
             try
             {
-                var uri = new Uri(value, UriKind.RelativeOrAbsolute);
+                var url = _indexerResponse.HttpRequest.Url + new HttpUri(value);
 
-                if (!uri.IsAbsoluteUri)
-                {
-                    uri = new Uri(_indexerResponse.HttpRequest.Url, uri);
-                }
-
-                return uri.AbsoluteUri;
+                return url.FullUri;
             }
             catch (Exception ex)
             {
-                _logger.DebugException(string.Format("Failed to parse Uri {0}, ignoring.", value), ex);
+                _logger.Debug(ex, string.Format("Failed to parse Url {0}, ignoring.", value));
                 return null;
             }
         }
 
-        private static readonly Regex ParseSizeRegex = new Regex(@"(?<value>(?:\d+,)*\d+(?:\.\d{1,2})?)\W?(?<unit>[KMG]i?B)(?![\w/])",
+        private static readonly Regex ParseSizeRegex = new Regex(@"(?<value>(?<!\.\d*)(?:\d+,)*\d+(?:\.\d{1,3})?)\W?(?<unit>[KMG]i?B)(?![\w/])",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public static long ParseSize(string sizeString, bool defaultToBinaryPrefix)

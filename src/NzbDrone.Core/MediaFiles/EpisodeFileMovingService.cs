@@ -64,7 +64,7 @@ namespace NzbDrone.Core.MediaFiles
             EnsureEpisodeFolder(episodeFile, series, episodes.Select(v => v.SeasonNumber).First(), filePath);
 
             _logger.Debug("Renaming episode file: {0} to {1}", episodeFile, filePath);
-            
+
             return TransferFile(episodeFile, series, episodes, filePath, TransferMode.Move);
         }
 
@@ -76,7 +76,7 @@ namespace NzbDrone.Core.MediaFiles
             EnsureEpisodeFolder(episodeFile, localEpisode, filePath);
 
             _logger.Debug("Moving episode file: {0} to {1}", episodeFile.Path, filePath);
-            
+
             return TransferFile(episodeFile, localEpisode.Series, localEpisode.Episodes, filePath, TransferMode.Move);
         }
 
@@ -111,11 +111,11 @@ namespace NzbDrone.Core.MediaFiles
 
            
         }
-        
+
         private EpisodeFile TransferFile(EpisodeFile episodeFile, Series series, List<Episode> episodes, string destinationFilePath, TransferMode mode)
         {
             Ensure.That(episodeFile, () => episodeFile).IsNotNull();
-            Ensure.That(series,() => series).IsNotNull();
+            Ensure.That(series, () => series).IsNotNull();
             Ensure.That(destinationFilePath, () => destinationFilePath).IsValidPath();
 
             var episodeFilePath = episodeFile.Path ?? Path.Combine(series.Path, episodeFile.RelativePath);
@@ -150,7 +150,7 @@ namespace NzbDrone.Core.MediaFiles
 
             catch (Exception ex)
             {
-                _logger.WarnException("Unable to set last write time", ex);
+                _logger.Warn(ex, "Unable to set last write time");
             }
 
             _mediaFileAttributeService.SetFilePermissions(destinationFilePath);
@@ -168,7 +168,7 @@ namespace NzbDrone.Core.MediaFiles
             var episodeFolder = Path.GetDirectoryName(filePath);
             var seasonFolder = _buildFileNames.BuildSeasonPath(series, seasonNumber);
             var seriesFolder = series.Path;
-            var rootFolder = Path.GetDirectoryName(seriesFolder);
+            var rootFolder = new OsPath(seriesFolder).Directory.FullPath;
 
             if (!_diskProvider.FolderExists(rootFolder))
             {
@@ -209,7 +209,7 @@ namespace NzbDrone.Core.MediaFiles
         {
             Ensure.That(directoryName, () => directoryName).IsNotNullOrWhiteSpace();
 
-            var parentFolder = Path.GetDirectoryName(directoryName);
+            var parentFolder = new OsPath(directoryName).Directory.FullPath;
             if (!_diskProvider.FolderExists(parentFolder))
             {
                 CreateFolder(parentFolder);
@@ -221,7 +221,7 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (IOException ex)
             {
-                _logger.ErrorException("Unable to create directory: " + directoryName, ex);
+                _logger.Error(ex, "Unable to create directory: {0}", directoryName);
             }
 
             _mediaFileAttributeService.SetFolderPermissions(directoryName);

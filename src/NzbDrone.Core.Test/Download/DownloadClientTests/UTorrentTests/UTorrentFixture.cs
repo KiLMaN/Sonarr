@@ -84,7 +84,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                         DownloadUrl = _downloadUrl,
                         RootDownloadPath = "somepath"
                     };
-            
+
             Mocker.GetMock<ITorrentFileInfoReader>()
                   .Setup(s => s.GetHashFromTorrentFile(It.IsAny<byte[]>()))
                   .Returns("CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951");
@@ -110,7 +110,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             httpHeader["Location"] = "http://test.sonarr.tv/not-a-real-torrent.torrent";
 
             Mocker.GetMock<IHttpClient>()
-                  .Setup(s => s.Get(It.Is<HttpRequest>(h => h.Url.AbsoluteUri == _downloadUrl)))
+                  .Setup(s => s.Get(It.Is<HttpRequest>(h => h.Url.ToString() == _downloadUrl)))
                   .Returns<HttpRequest>(r => new HttpResponse(r, httpHeader, new byte[0], System.Net.HttpStatusCode.Found));
         }
 
@@ -130,8 +130,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
                     PrepareClientToReturnQueuedItem();
                 });
         }
-        
-        protected virtual void GivenTorrents(List<UTorrentTorrent> torrents)
+
+        protected virtual void GivenTorrents(List<UTorrentTorrent> torrents, string cacheNumber = null)
         {
             if (torrents == null)
             {
@@ -139,13 +139,30 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             }
 
             Mocker.GetMock<IUTorrentProxy>()
-                .Setup(s => s.GetTorrents(It.IsAny<UTorrentSettings>()))
-                .Returns(torrents);
+                .Setup(s => s.GetTorrents(It.IsAny<string>(), It.IsAny<UTorrentSettings>()))
+                .Returns(new UTorrentResponse { Torrents = torrents, CacheNumber = cacheNumber });
+        }
+
+        protected virtual void GivenDifferentialTorrents(string oldCacheNumber, List<UTorrentTorrent> changed, List<string> removed, string cacheNumber)
+        {
+            if (changed == null)
+            {
+                changed = new List<UTorrentTorrent>();
+            }
+
+            if (removed == null)
+            {
+                removed = new List<string>();
+            }
+
+            Mocker.GetMock<IUTorrentProxy>()
+                .Setup(s => s.GetTorrents(oldCacheNumber, It.IsAny<UTorrentSettings>()))
+                .Returns(new UTorrentResponse { TorrentsChanged = changed, TorrentsRemoved = removed, CacheNumber = cacheNumber });
         }
 
         protected void PrepareClientToReturnQueuedItem()
         {
-            GivenTorrents(new List<UTorrentTorrent> 
+            GivenTorrents(new List<UTorrentTorrent>
                 {
                     _queued
                 });
@@ -153,7 +170,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
 
         protected void PrepareClientToReturnDownloadingItem()
         {
-            GivenTorrents(new List<UTorrentTorrent> 
+            GivenTorrents(new List<UTorrentTorrent>
                 {
                     _downloading
                 });
@@ -161,7 +178,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
 
         protected void PrepareClientToReturnFailedItem()
         {
-            GivenTorrents(new List<UTorrentTorrent> 
+            GivenTorrents(new List<UTorrentTorrent>
                 {
                     _failed
                 });
@@ -205,6 +222,9 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             PrepareClientToReturnCompletedItem();
             var item = Subject.GetItems().Single();
             VerifyCompleted(item);
+
+            item.CanBeRemoved.Should().BeTrue();
+            item.CanMoveFiles.Should().BeTrue();
         }
 
         [Test]
@@ -275,12 +295,12 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             item.Status.Should().Be(expectedItemStatus);
         }
 
-        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checking, DownloadItemStatus.Queued, false)]
-        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked, DownloadItemStatus.Completed, false)]
-        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Queued, DownloadItemStatus.Completed, true)]
-        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Started, DownloadItemStatus.Completed, true)]
-        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Queued | UTorrentTorrentStatus.Paused, DownloadItemStatus.Completed, true)]
-        public void GetItems_should_return_completed_item_as_downloadItemStatus(UTorrentTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus, bool expectedReadOnly)
+        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checking, DownloadItemStatus.Queued, true)]
+        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked, DownloadItemStatus.Completed, true)]
+        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Queued, DownloadItemStatus.Completed, false)]
+        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Started, DownloadItemStatus.Completed, false)]
+        [TestCase(UTorrentTorrentStatus.Loaded | UTorrentTorrentStatus.Checked | UTorrentTorrentStatus.Queued | UTorrentTorrentStatus.Paused, DownloadItemStatus.Completed, false)]
+        public void GetItems_should_return_completed_item_as_downloadItemStatus(UTorrentTorrentStatus apiStatus, DownloadItemStatus expectedItemStatus, bool expectedValue)
         {
             _completed.Status = apiStatus;
 
@@ -289,20 +309,21 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(expectedItemStatus);
-            item.IsReadOnly.Should().Be(expectedReadOnly);
+            item.CanBeRemoved.Should().Be(expectedValue);
+            item.CanMoveFiles.Should().Be(expectedValue);
         }
 
         [Test]
         public void should_return_status_with_outputdirs()
         {
             var configItems = new Dictionary<string, string>();
-            
+
             configItems.Add("dir_active_download_flag", "true");
             configItems.Add("dir_active_download", @"C:\Downloads\Downloading\utorrent".AsOsAgnostic());
             configItems.Add("dir_completed_download", @"C:\Downloads\Finished\utorrent".AsOsAgnostic());
             configItems.Add("dir_completed_download_flag", "true");
             configItems.Add("dir_add_label", "true");
-            
+
             Mocker.GetMock<IUTorrentProxy>()
                 .Setup(v => v.GetConfig(It.IsAny<UTorrentSettings>()))
                 .Returns(configItems);
@@ -352,6 +373,30 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.UTorrentTests
             var id = Subject.Download(remoteEpisode);
 
             id.Should().NotBeNullOrEmpty();
+        }
+
+        [Test]
+        public void GetItems_should_query_with_cache_id_if_available()
+        {
+            _downloading.Status = UTorrentTorrentStatus.Started;
+
+            GivenTorrents(new List<UTorrentTorrent> { _downloading }, "abc");
+
+            var item1 = Subject.GetItems().Single();
+
+            Mocker.GetMock<IUTorrentProxy>().Verify(v => v.GetTorrents(null, It.IsAny<UTorrentSettings>()), Times.Once());
+
+            GivenTorrents(new List<UTorrentTorrent> { _downloading, _queued }, "abc2");
+            GivenDifferentialTorrents("abc", new List<UTorrentTorrent> { _queued }, new List<string>(), "abc2");
+            GivenDifferentialTorrents("abc2", new List<UTorrentTorrent>(), new List<string>(), "abc2");
+
+            var item2 = Subject.GetItems().Single();
+
+            Mocker.GetMock<IUTorrentProxy>().Verify(v => v.GetTorrents("abc", It.IsAny<UTorrentSettings>()), Times.Once());
+
+            var item3 = Subject.GetItems().Single();
+
+            Mocker.GetMock<IUTorrentProxy>().Verify(v => v.GetTorrents("abc2", It.IsAny<UTorrentSettings>()), Times.Once());
         }
     }
 }

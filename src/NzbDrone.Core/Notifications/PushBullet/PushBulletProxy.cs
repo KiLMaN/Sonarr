@@ -5,6 +5,8 @@ using FluentValidation.Results;
 using NLog;
 using RestSharp;
 using NzbDrone.Core.Rest;
+using NzbDrone.Common.Extensions;
+using RestSharp.Authenticators;
 
 namespace NzbDrone.Core.Notifications.PushBullet
 {
@@ -40,7 +42,7 @@ namespace NzbDrone.Core.Notifications.PushBullet
                     }
                     catch (PushBulletException ex)
                     {
-                        _logger.ErrorException("Unable to send test message to: " + channelTag, ex);
+                        _logger.Error(ex, "Unable to send test message to {0}", channelTag);
                         error = true;
                     }
                 }
@@ -59,7 +61,7 @@ namespace NzbDrone.Core.Notifications.PushBullet
                         }
                         catch (PushBulletException ex)
                         {
-                            _logger.ErrorException("Unable to send test message to: " + deviceId, ex);
+                            _logger.Error(ex, "Unable to send test message to {0}", deviceId);
                             error = true;
                         }
                     }
@@ -74,7 +76,7 @@ namespace NzbDrone.Core.Notifications.PushBullet
                     }
                     catch (PushBulletException ex)
                     {
-                        _logger.ErrorException("Unable to send test message to all devices", ex);
+                        _logger.Error(ex, "Unable to send test message to all devices");
                         error = true;
                     }
                 }
@@ -99,16 +101,16 @@ namespace NzbDrone.Core.Notifications.PushBullet
             {
                 if (ex.Response.StatusCode == HttpStatusCode.Unauthorized)
                 {
-                    _logger.ErrorException("API Key is invalid: " + ex.Message, ex);
+                    _logger.Error(ex, "API Key is invalid");
                     return new ValidationFailure("ApiKey", "API Key is invalid");
                 }
 
-                _logger.ErrorException("Unable to send test message: " + ex.Message, ex);
+                _logger.Error(ex, "Unable to send test message");
                 return new ValidationFailure("ApiKey", "Unable to send test message");
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Unable to send test message: " + ex.Message, ex);
+                _logger.Error(ex, "Unable to send test message");
                 return new ValidationFailure("", "Unable to send test message");
             }
 
@@ -151,6 +153,11 @@ namespace NzbDrone.Core.Notifications.PushBullet
                 request.AddParameter("title", title);
                 request.AddParameter("body", message);
 
+                if (settings.SenderId.IsNotNullOrWhiteSpace())
+                {
+                    request.AddParameter("source_device_iden", settings.SenderId);
+                }
+
                 client.Authenticator = new HttpBasicAuthenticator(settings.ApiKey, string.Empty);
                 client.ExecuteAndValidate(request);
             }
@@ -158,7 +165,7 @@ namespace NzbDrone.Core.Notifications.PushBullet
             {
                 if (ex.Response.StatusCode == HttpStatusCode.Unauthorized)
                 {
-                    _logger.ErrorException("API Key is invalid: " + ex.Message, ex);
+                    _logger.Error(ex, "API Key is invalid");
                     throw;
                 }
 

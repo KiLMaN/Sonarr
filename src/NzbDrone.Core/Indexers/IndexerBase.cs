@@ -34,18 +34,9 @@ namespace NzbDrone.Core.Indexers
             _logger = logger;
         }
 
-        public Type ConfigContract
-        {
-            get { return typeof(TSettings); }
-        }
+        public Type ConfigContract => typeof(TSettings);
 
-        public virtual ProviderMessage Message
-        {
-            get
-            {
-                return null;
-            }
-        }
+        public virtual ProviderMessage Message => null;
 
         public virtual IEnumerable<ProviderDefinition> DefaultDefinitions
         {
@@ -65,15 +56,10 @@ namespace NzbDrone.Core.Indexers
         }
 
         public virtual ProviderDefinition Definition { get; set; }
-        public object ConnectData(string stage, IDictionary<string, object> query) { return null; }
 
-        protected TSettings Settings
-        {
-            get
-            {
-                return (TSettings)Definition.Settings;
-            }
-        }
+        public virtual object RequestAction(string action, IDictionary<string, string> query) { return null; }
+
+        protected TSettings Settings => (TSettings)Definition.Settings;
 
         public abstract IList<ReleaseInfo> FetchRecent();
         public abstract IList<ReleaseInfo> Fetch(SeasonSearchCriteria searchCriteria);
@@ -106,7 +92,7 @@ namespace NzbDrone.Core.Indexers
             }
             catch (Exception ex)
             {
-                _logger.ErrorException("Test aborted due to exception", ex);
+                _logger.Error(ex, "Test aborted due to exception");
                 failures.Add(new ValidationFailure(string.Empty, "Test was aborted due to an error: " + ex.Message));
             }
 

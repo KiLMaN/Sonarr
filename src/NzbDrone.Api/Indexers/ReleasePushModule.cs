@@ -6,7 +6,6 @@ using NzbDrone.Core.Download;
 using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Core.Parser.Model;
-using NzbDrone.Api.Mapping;
 using NzbDrone.Api.Extensions;
 using NLog;
 
@@ -30,7 +29,7 @@ namespace NzbDrone.Api.Indexers
 
             PostValidator.RuleFor(s => s.Title).NotEmpty();
             PostValidator.RuleFor(s => s.DownloadUrl).NotEmpty();
-            PostValidator.RuleFor(s => s.DownloadProtocol).NotEmpty();
+            PostValidator.RuleFor(s => s.Protocol).NotEmpty();
             PostValidator.RuleFor(s => s.PublishDate).NotEmpty();
         }
 
@@ -38,11 +37,12 @@ namespace NzbDrone.Api.Indexers
         {
             _logger.Info("Release pushed: {0} - {1}", release.Title, release.DownloadUrl);
 
-            var info = release.InjectTo<ReleaseInfo>();
+            var info = release.ToModel();
+
             info.Guid = "PUSH-" + info.DownloadUrl;
 
             var decisions = _downloadDecisionMaker.GetRssDecision(new List<ReleaseInfo> { info });
-            var processed = _downloadDecisionProcessor.ProcessDecisions(decisions);
+            _downloadDecisionProcessor.ProcessDecisions(decisions);
 
             return MapDecisions(decisions).First().AsResponse();
         }

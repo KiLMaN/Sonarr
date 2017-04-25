@@ -2,15 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using FluentMigrator;
 using FluentMigrator.Runner;
 using Marr.Data;
-using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Migration.Framework;
-using NzbDrone.Core.Messaging.Events;
-
 
 namespace NzbDrone.Core.Test.Framework
 {
@@ -22,21 +18,9 @@ namespace NzbDrone.Core.Test.Framework
 
         protected BasicRepository<TModel> Storage { get; private set; }
 
-        protected IList<TModel> AllStoredModels
-        {
-            get
-            {
-                return Storage.All().ToList();
-            }
-        }
+        protected IList<TModel> AllStoredModels => Storage.All().ToList();
 
-        protected TModel StoredModel
-        {
-            get
-            {
-                return Storage.All().Single();
-            }
-        }
+        protected TModel StoredModel => Storage.All().Single();
 
         [SetUp]
         public void CoreTestSetup()
@@ -65,14 +49,7 @@ namespace NzbDrone.Core.Test.Framework
     {
         private ITestDatabase _db;
 
-        protected virtual MigrationType MigrationType
-        {
-            get
-            {
-                return MigrationType.Main;
-
-            }
-        }
+        protected virtual MigrationType MigrationType => MigrationType.Main;
 
         protected ITestDatabase Db
         {
@@ -85,10 +62,10 @@ namespace NzbDrone.Core.Test.Framework
             }
         }
 
-        protected virtual TestDatabase WithTestDb(Action<MigrationBase> beforeMigration)
+        protected virtual ITestDatabase WithTestDb(MigrationContext migrationContext)
         {
             var factory = Mocker.Resolve<DbFactory>();
-            var database = factory.Create(MigrationType, beforeMigration);
+            var database = factory.Create(migrationContext);
             Mocker.SetConstant(database);
 
             switch (MigrationType)
@@ -118,12 +95,10 @@ namespace NzbDrone.Core.Test.Framework
             return testDb;
         }
 
-
         protected void SetupContainer()
         {
             WithTempAsAppPath();
 
-            Mocker.SetConstant<IAnnouncer>(Mocker.Resolve<MigrationLogger>());
             Mocker.SetConstant<IConnectionStringFactory>(Mocker.Resolve<ConnectionStringFactory>());
             Mocker.SetConstant<IMigrationController>(Mocker.Resolve<MigrationController>());
 
@@ -134,7 +109,7 @@ namespace NzbDrone.Core.Test.Framework
         public virtual void SetupDb()
         {
             SetupContainer();
-            _db = WithTestDb(null);
+            _db = WithTestDb(new MigrationContext(MigrationType));
         }
 
         [TearDown]
@@ -156,59 +131,6 @@ namespace NzbDrone.Core.Test.Framework
                     }
                 }
             }
-        }
-    }
-
-
-    public interface ITestDatabase
-    {
-        void InsertMany<T>(IEnumerable<T> items) where T : ModelBase, new();
-        T Insert<T>(T item) where T : ModelBase, new();
-        List<T> All<T>() where T : ModelBase, new();
-        T Single<T>() where T : ModelBase, new();
-        void Update<T>(T childModel) where T : ModelBase, new();
-        void Delete<T>(T childModel) where T : ModelBase, new();
-    }
-
-    public class TestDatabase : ITestDatabase
-    {
-        private readonly IDatabase _dbConnection;
-        private IEventAggregator _eventAggregator;
-
-        public TestDatabase(IDatabase dbConnection)
-        {
-            _eventAggregator = new Mock<IEventAggregator>().Object;
-            _dbConnection = dbConnection;
-        }
-
-        public void InsertMany<T>(IEnumerable<T> items) where T : ModelBase, new()
-        {
-            new BasicRepository<T>(_dbConnection, _eventAggregator).InsertMany(items.ToList());
-        }
-
-        public T Insert<T>(T item) where T : ModelBase, new()
-        {
-            return new BasicRepository<T>(_dbConnection, _eventAggregator).Insert(item);
-        }
-
-        public List<T> All<T>() where T : ModelBase, new()
-        {
-            return new BasicRepository<T>(_dbConnection, _eventAggregator).All().ToList();
-        }
-
-        public T Single<T>() where T : ModelBase, new()
-        {
-            return All<T>().SingleOrDefault();
-        }
-
-        public void Update<T>(T childModel) where T : ModelBase, new()
-        {
-            new BasicRepository<T>(_dbConnection, _eventAggregator).Update(childModel);
-        }
-
-        public void Delete<T>(T childModel) where T : ModelBase, new()
-        {
-            new BasicRepository<T>(_dbConnection, _eventAggregator).Delete(childModel);
         }
     }
 }

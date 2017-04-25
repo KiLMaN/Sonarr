@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -67,7 +66,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             }
 
             Mocker.GetMock<IUpgradeMediaFiles>()
-                  .Setup(s => s.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), false))
+                  .Setup(s => s.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), It.IsAny<bool>()))
                   .Returns(new EpisodeFileMoveResult());
 
             _downloadClientItem = Builder<DownloadClientItem>.CreateNew().Build();
@@ -95,7 +94,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             all.AddRange(_approvedDecisions);
 
             var result = Subject.Import(all, false);
-            
+
             result.Should().HaveCount(all.Count);
             result.Where(i => i.Result == ImportResultType.Imported).Should().HaveCount(_approvedDecisions.Count);
         }
@@ -222,6 +221,24 @@ namespace NzbDrone.Core.Test.MediaFiles
             results.Should().HaveCount(all.Count);
             results.Should().ContainSingle(d => d.Result == ImportResultType.Imported);
             results.Should().ContainSingle(d => d.Result == ImportResultType.Imported && d.ImportDecision.LocalEpisode.Size == fileDecision.LocalEpisode.Size);
+        }
+
+        [Test]
+        public void should_copy_when_cannot_move_files_downloads()
+        {
+            Subject.Import(new List<ImportDecision> { _approvedDecisions.First() }, true, new DownloadClientItem { Title = "30.Rock.S01E01", CanMoveFiles = false});
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Verify(v => v.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), _approvedDecisions.First().LocalEpisode, true), Times.Once());
+        }
+
+        [Test]
+        public void should_use_override_importmode()
+        {
+            Subject.Import(new List<ImportDecision> { _approvedDecisions.First() }, true, new DownloadClientItem { Title = "30.Rock.S01E01", CanMoveFiles = false }, ImportMode.Move);
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Verify(v => v.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), _approvedDecisions.First().LocalEpisode, false), Times.Once());
         }
     }
 }

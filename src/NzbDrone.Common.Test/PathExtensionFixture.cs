@@ -6,6 +6,7 @@ using NUnit.Framework;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Test.Common;
+using NzbDrone.Test.Common.Categories;
 
 namespace NzbDrone.Common.Test
 {
@@ -153,7 +154,7 @@ namespace NzbDrone.Common.Test
         }
 
         [Test]
-        [Ignore]
+        [Ignore("Parent, not Grandparent")]
         public void should_not_be_parent_when_it_is_grandparent()
         {
             var path = Path.Combine(_parent, "parent", "child");
@@ -195,7 +196,7 @@ namespace NzbDrone.Common.Test
         public void get_actual_casing_should_return_actual_casing_for_local_file_in_windows()
         {
             WindowsOnly();
-            var path = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32");
+            var path = Directory.GetDirectories("C:\\")[3];
             path.ToUpper().GetActualCasing().Should().Be(path);
             path.ToLower().GetActualCasing().Should().Be(path);
         }
@@ -205,7 +206,7 @@ namespace NzbDrone.Common.Test
         public void get_actual_casing_should_return_actual_casing_for_local_dir_in_windows()
         {
             WindowsOnly();
-            var path = Directory.GetCurrentDirectory().Replace("c:\\","C:\\");
+            var path = Directory.GetCurrentDirectory().Replace("c:\\","C:\\").Replace("system32", "System32");
 
             path.ToUpper().GetActualCasing().Should().Be(path);
             path.ToLower().GetActualCasing().Should().Be(path);
@@ -222,6 +223,7 @@ namespace NzbDrone.Common.Test
 
         [Test]
         [Explicit]
+        [ManualTest]
         public void get_actual_casing_should_return_original_casing_for_shares()
         {
             var path = @"\\server\Pool\Apps";
@@ -241,7 +243,7 @@ namespace NzbDrone.Common.Test
         }
 
         [Test]
-        public void Sanbox()
+        public void Sandbox()
         {
             GetIAppDirectoryInfo().GetUpdateSandboxFolder().Should().BeEquivalentTo(@"C:\Temp\nzbdrone_update\".AsOsAgnostic());
         }
@@ -268,6 +270,34 @@ namespace NzbDrone.Common.Test
         public void GetUpdateLogFolder()
         {
             GetIAppDirectoryInfo().GetUpdateLogFolder().Should().BeEquivalentTo(@"C:\NzbDrone\UpdateLogs\".AsOsAgnostic());
+        }
+
+        [Test]
+        public void GetAncestorFolders_should_return_all_ancestors_in_path_Windows()
+        {
+            WindowsOnly();
+            var path = @"C:\Test\TV\Series Title";
+            var result = path.GetAncestorFolders();
+
+            result.Count.Should().Be(4);
+            result[0].Should().Be(@"C:\");
+            result[1].Should().Be(@"Test");
+            result[2].Should().Be(@"TV");
+            result[3].Should().Be(@"Series Title");
+        }
+
+        [Test]
+        public void GetAncestorFolders_should_return_all_ancestors_in_path_Linux()
+        {
+            MonoOnly();
+            var path = @"/Test/TV/Series Title";
+            var result = path.GetAncestorFolders();
+
+            result.Count.Should().Be(4);
+            result[0].Should().Be(@"/");
+            result[1].Should().Be(@"Test");
+            result[2].Should().Be(@"TV");
+            result[3].Should().Be(@"Series Title");
         }
     }
 }
