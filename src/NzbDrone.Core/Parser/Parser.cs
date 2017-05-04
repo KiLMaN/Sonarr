@@ -317,14 +317,16 @@ namespace NzbDrone.Core.Parser
                 }
 
                 var simpleTitle = SimpleTitleRegex.Replace(title, string.Empty);
+                Logger.Debug("Parsing simpleTitle 1 '{0}'", simpleTitle);
 
+                
                 simpleTitle = RemoveFileExtension(simpleTitle);
-
+  Logger.Debug("Parsing simpleTitle 2 '{0}'", simpleTitle);
                 // TODO: Quick fix stripping [url] - prefixes.
                 simpleTitle = WebsitePrefixRegex.Replace(simpleTitle, string.Empty);
-
+  Logger.Debug("Parsing simpleTitle 3 '{0}'", simpleTitle);
                 simpleTitle = CleanTorrentSuffixRegex.Replace(simpleTitle, string.Empty);
-
+  Logger.Debug("Parsing simpleTitle 4 '{0}'", simpleTitle);
                 var airDateMatch = AirDateRegex.Match(simpleTitle);
                 if (airDateMatch.Success)
                 {
@@ -346,6 +348,7 @@ namespace NzbDrone.Core.Parser
                     }
                 }
 
+                  Logger.Debug("Parsing simpleTitle 5 '{0}'", simpleTitle);
                 foreach (var regex in ReportTitleRegex)
                 {
                     var match = regex.Matches(simpleTitle);
@@ -397,6 +400,7 @@ namespace NzbDrone.Core.Parser
                         }
                     }
                 }
+                  Logger.Debug("Parsing simpleTitle end '{0}'", simpleTitle);
             }
             catch (Exception e)
             {
